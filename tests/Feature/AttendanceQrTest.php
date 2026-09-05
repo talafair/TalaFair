@@ -35,6 +35,16 @@ class AttendanceQrTest extends TestCase
         $this->assertSame(100, $resident->fresh()->points);
     }
 
+    public function test_scanner_page_has_no_scan_error_before_a_qr_is_received(): void
+    {
+        [, $resident] = $this->attendanceSetup();
+
+        $this->actingAs($resident)
+            ->get(route('attendance.scanner'))
+            ->assertOk()
+            ->assertDontSee('Invalid event QR code. Please scan the QR code for the correct event.');
+    }
+
     public function test_signed_resident_qr_uses_the_same_attendance_processing(): void
     {
         [$official, $resident, $event] = $this->attendanceSetup();
@@ -122,7 +132,7 @@ class AttendanceQrTest extends TestCase
             ]);
 
             $response->assertUnprocessable()
-                ->assertJsonPath('message', 'Attendance scanning is not available yet. Scanning opens 2 hours before the event starts at ' . $event->event_start_at->format('M j, Y g:i A') . '.');
+                ->assertJsonPath('message', 'Attendance scanning is not available yet. Scanning opens 2 hours before the event starts at ' . $event->scanOpensAt()->format('M j, Y g:i A') . '.');
             $this->assertDatabaseCount('attendances', 0);
         } finally {
             Carbon::setTestNow();

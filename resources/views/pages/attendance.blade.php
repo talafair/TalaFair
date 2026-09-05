@@ -49,7 +49,7 @@
       </ul>
     @endif
 
-    <div id="reader" class="rounded-3 overflow-hidden bg-dark mx-auto" style="max-width: 320px;"></div>
+    <div id="reader" class="rounded-3 overflow-hidden bg-dark mx-auto" style="width: min(100%, 280px); aspect-ratio: 1 / 1;"></div>
 
     <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
 
@@ -120,7 +120,7 @@
   const manualBack = document.getElementById('manual-back');
   const eventSelect = document.getElementById('event-select');
 
-  let scanner = null, busy = false, completed = false, scannerPaused = false;
+  let scanner = null, busy = false, completed = false, scannerPaused = false, scannerRunning = false;
   let selectedAnnouncementId = ANNOUNCEMENT_ID;
 
   eventSelect?.addEventListener('change', () => {
@@ -130,6 +130,11 @@
   function show(ok, html) {
     resultBox.className = 'alert mt-3 rounded-3 ' + (ok ? 'alert-success' : 'alert-danger');
     resultBox.innerHTML = html;
+  }
+
+  function status(message, tone = 'info') {
+    resultBox.className = 'alert mt-3 rounded-3 alert-' + tone;
+    resultBox.textContent = message;
   }
 
   function position() {
@@ -144,8 +149,10 @@
   }
 
   async function submit(token) {
-    if (busy || completed) return;
+    token = typeof token === 'string' ? token.trim() : '';
+    if (!token || busy || completed) return;
     busy = true;
+    status('Processing QR code…', 'info');
     try {
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Checking your location…';
       const coords = await position();
@@ -197,10 +204,10 @@
         }
       }
     } catch (err) {
-      show(false, 'The attendance service could not be reached. Check your connection and try again.');
+      show(false, 'Unable to record attendance. Please try again.');
     } finally {
       if (scannerPaused && scanner) {
-        scanner.resume();
+        try { scanner.resume(); } catch (e) {}
         scannerPaused = false;
       }
       busy = false;
@@ -240,7 +247,7 @@
         show(false, data.message || 'Unique QR ID not found. Please check the ID and try again.');
       }
     } catch (err) {
-      show(false, 'The attendance service could not be reached. Check your connection and try again.');
+      show(false, 'Unable to record attendance. Please try again.');
     } finally {
       busy = false;
     }
@@ -268,6 +275,7 @@
     }
     scanner = scanner || new Html5Qrcode('reader');
     try {
+      status('Starting camera…', 'info');
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Requesting location permission…';
       await position();
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>Location permission granted. Starting camera…';
@@ -276,12 +284,16 @@
         { fps: 10, qrbox: { width: 220, height: 220 } },
         text => {
           if (busy || completed) return;
-          scanner.pause(true);
-          scannerPaused = true;
+          try {
+            scanner.pause(true);
+            scannerPaused = true;
+          } catch (e) {}
           submit(text);
         },
         () => {}
       );
+      scannerRunning = true;
+      status('Scanning for a QR code…', 'info');
       startBtn.classList.add('d-none');
       stopBtn.classList.remove('d-none');
       document.getElementById('permission-help')?.classList.add('d-none');
@@ -301,13 +313,20 @@
   });
 
   stopBtn.addEventListener('click', function () {
-    if (scanner) scanner.stop().catch(() => {});
+    if (scanner && scannerRunning) scanner.stop().catch(() => {});
+    scannerRunning = false;
+    scannerPaused = false;
+    status('Camera stopped. Select Open camera to try again.', 'secondary');
     stopBtn.classList.add('d-none');
     startBtn.classList.remove('d-none');
   });
 
+  window.addEventListener('pagehide', () => {
+    if (scanner && scannerRunning) scanner.stop().catch(() => {});
+  });
+
   if (PREFILLED) {
-    show(true, 'Confirming your location for this event…');
+    status('Processing event QR code…', 'info');
     submit(PREFILLED);
   }
 })();

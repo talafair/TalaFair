@@ -263,7 +263,7 @@ class AttendanceController extends Controller
         $attendancePosition = null;
 
         try {
-            DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown) {
+            DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown, &$attendancePosition) {
             $lockedEvent = Announcement::query()->lockForUpdate()->findOrFail($event->id);
             if ($lockedEvent->attendances()->where('user_id', $attendee->id)->exists()) {
                 throw new \DomainException('This resident has already been recorded for this event.');
@@ -340,7 +340,7 @@ class AttendanceController extends Controller
         if ($event->scanOpensAt() && now()->lessThan($event->scanOpensAt())) {
             return $this->fail(sprintf(
                 'Attendance scanning is not available yet. Scanning opens 2 hours before the event starts at %s.',
-                $event->event_start_at?->format('M j, Y g:i A')
+                $event->scanOpensAt()->format('M j, Y g:i A')
             ));
         }
 
