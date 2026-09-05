@@ -35,7 +35,7 @@
           <a href="{{ url('/') }}" class="d-block mt-2 fw-semibold">Back to home</a>
         </div>
       </div>
-    @else
+    @elseif (! $officialMode)
       <ul class="list-group mb-3">
         @foreach ($openEvents as $event)
           <li class="list-group-item">
@@ -49,7 +49,12 @@
       </ul>
     @endif
 
-    <div id="reader" class="rounded-3 overflow-hidden bg-dark mx-auto" style="width: min(100%, 280px); aspect-ratio: 1 / 1;"></div>
+    <div id="reader" class="position-relative rounded-3 overflow-hidden bg-dark mx-auto" style="width: min(100%, 280px); aspect-ratio: 1 / 1;">
+      <button id="start-btn" class="btn btn-primary fw-semibold position-absolute top-50 start-50 translate-middle z-1 shadow">
+        <i class="bi bi-camera me-1"></i>Open camera
+      </button>
+      <button id="stop-btn" class="btn btn-outline-secondary fw-semibold position-absolute top-50 start-50 translate-middle z-1 shadow d-none">Stop</button>
+    </div>
 
     <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
 
@@ -81,13 +86,6 @@
         <a href="{{ route('id-card.show') }}" class="btn btn-sm btn-warning mt-2"><i class="bi bi-person-badge me-1"></i>Open my ID card</a>
       </div>
     @endif
-
-    <div class="d-flex gap-2 mt-3">
-      <button id="start-btn" class="btn btn-primary flex-fill fw-semibold">
-        <i class="bi bi-camera me-1"></i>Open camera
-      </button>
-      <button id="stop-btn" class="btn btn-outline-secondary flex-fill fw-semibold d-none">Stop</button>
-    </div>
 
     <p id="gps-status" class="form-text mt-2">
       <i class="bi bi-geo-alt me-1"></i>Location is not shared yet.
