@@ -51,13 +51,17 @@
     </div>
 
     @if ($officialMode && $announcement && ! $activityMode)
+      <button id="manual-toggle" type="button" class="btn btn-outline-dark w-100 mt-3">
+        <i class="bi bi-keyboard me-1"></i>Can't scan? Enter Unique QR ID manually
+      </button>
       <form id="manual-form" class="border rounded-3 p-3 mt-3 d-none">
-        <label for="unique-id" class="form-label fw-semibold">Resident unique ID</label>
+        <label for="unique-id" class="form-label fw-semibold">Unique QR ID</label>
         <div class="input-group">
           <input id="unique-id" class="form-control" placeholder="Z2-26-000000001" maxlength="32">
-          <button class="btn btn-dark" type="submit">Check in</button>
+          <button class="btn btn-dark" type="submit">Verify</button>
         </div>
-        <div class="form-text">Available after three unsuccessful QR attempts. Enter the resident's unique ID from their ID card.</div>
+        <div class="form-text">Enter the resident's existing Unique QR ID from their ID card.</div>
+        <button id="manual-back" type="button" class="btn btn-link btn-sm px-0">Back to scanner</button>
       </form>
     @endif
 
@@ -103,8 +107,10 @@
   const startBtn  = document.getElementById('start-btn');
   const stopBtn   = document.getElementById('stop-btn');
   const manualForm = document.getElementById('manual-form');
+  const manualToggle = document.getElementById('manual-toggle');
+  const manualBack = document.getElementById('manual-back');
 
-  let scanner = null, busy = false, qrAttempts = 0, completed = false;
+  let scanner = null, busy = false, completed = false;
 
   function show(ok, html) {
     resultBox.className = 'alert mt-3 rounded-3 ' + (ok ? 'alert-success' : 'alert-danger');
@@ -125,8 +131,6 @@
   async function submit(token) {
     if (busy || completed) return;
     busy = true;
-    qrAttempts++;
-
     try {
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Checking your location…';
       const coords = await position();
@@ -148,7 +152,7 @@
       const data = await res.json();
 
       if (data.ok) {
-        completed = true;
+        completed = !OFFICIAL;
         show(true, ACTIVITY
           ? '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>' + data.message + '</div>'
           :
@@ -164,17 +168,11 @@
         startBtn.classList.remove('d-none');
       } else {
         show(false, data.message || 'That scan could not be accepted.');
-        if (qrAttempts >= 3) {
-          if (OFFICIAL) {
-            manualForm?.classList.remove('d-none');
-            show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Three QR attempts used.</div><div class="small mt-1">Enter the resident unique ID from their ID card below.</div>');
-          } else {
-            document.getElementById('resident-id-fallback')?.classList.remove('d-none');
-            show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>QR scanning did not work after 3 attempts.</div><div class="small mt-1">Ask an official to scan your ID card.</div>');
-          }
-          if (scanner) scanner.stop().catch(() => {});
-          stopBtn.classList.add('d-none');
-          startBtn.classList.remove('d-none');
+        if (OFFICIAL) {
+          manualForm?.classList.remove('d-none');
+          manualToggle?.classList.add('d-none');
+        } else {
+          document.getElementById('resident-id-fallback')?.classList.remove('d-none');
         }
       }
     } catch (err) {
@@ -186,7 +184,8 @@
 
   manualForm?.addEventListener('submit', async function (event) {
     event.preventDefault();
-    if (completed) return;
+    if (completed || busy) return;
+    busy = true;
     try {
       const uniqueId = document.getElementById('unique-id');
       if (!uniqueId.value.trim()) {
@@ -206,16 +205,30 @@
       });
       const data = await res.json();
       if (data.ok) {
-        completed = true;
+        completed = !OFFICIAL;
         uniqueId.value = '';
-        manualForm.classList.add('d-none');
-        show(true, '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Attendance confirmed.</div><div class="small mt-1">' + data.message + '</div>');
+        show(true, '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Attendance recorded successfully.</div><div class="small mt-1">' + data.resident + ' · ' + data.message + '</div>');
       } else {
-        show(false, data.message || 'That unique ID could not be accepted.');
+        show(false, data.message || 'Unique QR ID not found. Please check the ID and try again.');
       }
     } catch (err) {
       show(false, err.message);
+    } finally {
+      busy = false;
     }
+  });
+
+  manualToggle?.addEventListener('click', () => {
+    manualForm?.classList.remove('d-none');
+    manualToggle.classList.add('d-none');
+    if (scanner) scanner.stop().catch(() => {});
+    stopBtn.classList.add('d-none');
+    startBtn.classList.remove('d-none');
+  });
+
+  manualBack?.addEventListener('click', () => {
+    manualForm.classList.add('d-none');
+    manualToggle?.classList.remove('d-none');
   });
 
   startBtn.addEventListener('click', async function () {

@@ -133,33 +133,14 @@ class AttendanceController extends Controller
         $attendee = $user;
 
         if ($user->isOfficial()) {
-            $payload = json_decode($data['token'], true);
-            $id = is_array($payload) ? ($payload['id'] ?? null) : null;
-            $signature = is_array($payload) ? ($payload['sig'] ?? null) : null;
-
-            if (! $id || ! $signature || ! hash_equals(
-                substr(hash_hmac('sha256', $id, config('app.key')), 0, 16),
-                $signature
-            )) {
-                return $this->fail('That resident ID QR code is invalid or has been altered.');
-            }
-
-            $attendee = User::where('unique_id', $id)->where('role', 'resident')->first();
-
-            if (! $attendee) {
-                return $this->fail('That resident ID could not be found.');
-            }
-
-        }
-
-        if ($event->attendances()->where('user_id', $attendee->id)->exists()) {
-            return $this->fail('You already checked in for this event.');
+            $attendee = $this->residentFromQr($data['token']);
+            if ($attendee instanceof JsonResponse) return $attendee;
         }
 
         return $this->recordAttendance($event, $attendee, $data, $distance);
     }
 
-    /** Officials can use the resident's printed unique ID after three QR scans. */
+    /** Officials can use the resident's printed unique ID through the same attendance flow. */
     public function checkById(Request $request): JsonResponse
     {
         /** @var User $viewer */
@@ -173,15 +154,18 @@ class AttendanceController extends Controller
             'longitude'       => ['required', 'numeric', 'between:-180,180'],
         ]);
 
-        if (session("attendance_scans.{$data['announcement_id']}", 0) < 3) {
-            return $this->fail('Three QR attempts are required before entering a resident unique ID.');
+        $data['unique_id'] = trim($data['unique_id']);
+        if ($data['unique_id'] === '') {
+            return $this->fail('Unique QR ID not found. Please check the ID and try again.');
         }
 
         $event = Announcement::events()->findOrFail($data['announcement_id']);
-        $attendee = User::where('unique_id', trim($data['unique_id']))->where('role', 'resident')->first();
+        $attendee = User::where('unique_id', trim($data['unique_id']))
+            ->where('role', 'resident')
+            ->first();
 
         if (! $attendee) {
-            return $this->fail('That resident ID could not be found.');
+            return $this->fail('Unique QR ID not found. Please check the ID and try again.');
         }
 
         $lat = (float) ($event->venue_lat ?? config('talafair.barangay_lat'));
@@ -259,18 +243,21 @@ class AttendanceController extends Controller
 
     private function recordAttendance(Announcement $event, User $attendee, array $data, float $distance): JsonResponse
     {
-        if ($event->attendances()->where('user_id', $attendee->id)->exists()) {
-            return $this->fail('This resident already checked in for this event.');
-        }
-
         $early = $event->isEarlyScan();
-        $attendancePosition = $event->attendances()->count() + 1;
         $preRegistered = $event->rsvps()->where('user_id', $attendee->id)->where('status', 'attending')->exists();
         $breakdown = PointsCalculator::breakdown($event, $preRegistered, $early);
+        $attendancePosition = null;
 
-        DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown, $attendancePosition) {
+        try {
+            DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown) {
+            $lockedEvent = Announcement::query()->lockForUpdate()->findOrFail($event->id);
+            if ($lockedEvent->attendances()->where('user_id', $attendee->id)->exists()) {
+                throw new \DomainException('This resident has already been recorded for this event.');
+            }
+
+            $attendancePosition = $lockedEvent->attendances()->count() + 1;
             Attendance::create([
-                'announcement_id' => $event->id,
+                'announcement_id' => $lockedEvent->id,
                 'user_id' => $attendee->id,
                 'scanned_at' => now(),
                 'is_early' => $early,
@@ -282,15 +269,18 @@ class AttendanceController extends Controller
             ]);
             $attendee->increment('points', $breakdown['total']);
             RaffleService::ensureEntry($attendee);
-            if ($event->raffle_enabled) {
+            if ($lockedEvent->raffle_enabled) {
                 EventRaffleEntry::firstOrCreate(
-                    ['announcement_id' => $event->id, 'user_id' => $attendee->id],
+                    ['announcement_id' => $lockedEvent->id, 'user_id' => $attendee->id],
                     ['is_early' => $early, 'weight' => $early ? 1.10 : 1.00]
                 );
             }
             $attendee->refresh();
-            BadgeService::awardEligible($attendee, $event, $attendancePosition);
-        });
+            BadgeService::awardEligible($attendee, $lockedEvent, $attendancePosition);
+            });
+        } catch (\DomainException $exception) {
+            return $this->fail($exception->getMessage());
+        }
 
         return response()->json([
             'ok' => true,
@@ -303,6 +293,24 @@ class AttendanceController extends Controller
                 ? "Checked in early. +{$breakdown['total']} points, including the 10% early bonus."
                 : "Checked in. +{$breakdown['total']} points.",
         ]);
+    }
+
+    private function residentFromQr(string $value): User|JsonResponse
+    {
+        $payload = json_decode($value, true);
+        $id = is_array($payload) ? ($payload['id'] ?? null) : null;
+        $signature = is_array($payload) ? ($payload['sig'] ?? null) : null;
+
+        if (! is_string($id) || ! is_string($signature) || ! hash_equals(
+            substr(hash_hmac('sha256', $id, config('app.key')), 0, 16),
+            $signature
+        )) {
+            return $this->fail('Invalid QR code. Resident not found.');
+        }
+
+        $resident = User::where('unique_id', $id)->where('role', 'resident')->first();
+
+        return $resident ?: $this->fail('Invalid QR code. Resident not found.');
     }
 
     /** A resident's own attendance record. */

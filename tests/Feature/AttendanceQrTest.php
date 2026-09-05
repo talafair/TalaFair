@@ -1,0 +1,120 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Announcement;
+use App\Models\Attendance;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class AttendanceQrTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_manual_unique_id_records_attendance_through_shared_flow(): void
+    {
+        [$official, $resident, $event] = $this->attendanceSetup();
+
+        $response = $this->actingAs($official)->postJson(route('attendance.check-by-id'), [
+            'announcement_id' => $event->id,
+            'unique_id' => $resident->unique_id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertOk()->assertJsonPath('ok', true);
+        $this->assertDatabaseHas('attendances', [
+            'announcement_id' => $event->id,
+            'user_id' => $resident->id,
+            'points_awarded' => 100,
+        ]);
+        $this->assertSame(100, $resident->fresh()->points);
+    }
+
+    public function test_signed_resident_qr_uses_the_same_attendance_processing(): void
+    {
+        [$official, $resident, $event] = $this->attendanceSetup();
+        $payload = json_encode([
+            'id' => $resident->unique_id,
+            'sig' => substr(hash_hmac('sha256', $resident->unique_id, config('app.key')), 0, 16),
+        ]);
+
+        $response = $this->actingAs($official)->postJson(route('attendance.check'), [
+            'token' => $payload,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertOk()->assertJsonPath('resident', $resident->full_name);
+        $this->assertDatabaseCount('attendances', 1);
+    }
+
+    public function test_invalid_or_duplicate_manual_id_is_rejected_without_extra_points(): void
+    {
+        [$official, $resident, $event] = $this->attendanceSetup();
+        $payload = [
+            'announcement_id' => $event->id,
+            'unique_id' => $resident->unique_id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ];
+
+        $this->actingAs($official)->postJson(route('attendance.check-by-id'), [
+            ...$payload,
+            'unique_id' => 'not-a-real-id',
+        ])->assertUnprocessable()->assertJsonPath('ok', false);
+
+        $this->actingAs($official)->postJson(route('attendance.check-by-id'), $payload)->assertOk();
+        $this->actingAs($official)->postJson(route('attendance.check-by-id'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'This resident has already been recorded for this event.');
+
+        $this->assertDatabaseCount('attendances', 1);
+        $this->assertSame(100, $resident->fresh()->points);
+    }
+
+    public function test_only_officials_can_use_manual_unique_id_fallback(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+
+        $this->actingAs($resident)->postJson(route('attendance.check-by-id'), [
+            'announcement_id' => $event->id,
+            'unique_id' => $resident->unique_id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertForbidden();
+    }
+
+    private function attendanceSetup(): array
+    {
+        $official = User::factory()->create([
+            'role' => 'official',
+            'official_group' => 'barangay_council',
+            'official_position' => 'barangay_captain',
+        ]);
+        $resident = User::factory()->create([
+            'role' => 'resident',
+            'unique_id' => 'Z2-26-000000001',
+            'points' => 0,
+        ]);
+        $event = Announcement::create([
+            'title' => 'Test event',
+            'category' => 'events',
+            'body' => 'Attendance test',
+            'is_event' => true,
+            'event_start_at' => now()->subHour(),
+            'event_end_at' => now()->addHour(),
+            'qr_token' => 'event-token-' . $resident->id,
+            'qr_expires_at' => now()->addHour(),
+            'base_points' => 100,
+            'audiences' => ['public'],
+            'venue_lat' => config('talafair.barangay_lat'),
+            'venue_lng' => config('talafair.barangay_lng'),
+            'geofence_radius' => 300,
+        ]);
+
+        return [$official, $resident, $event];
+    }
+}
