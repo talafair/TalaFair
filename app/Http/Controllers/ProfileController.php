@@ -96,7 +96,8 @@ class ProfileController extends Controller
             Storage::disk('public')->delete($user->avatar_path);
         }
 
-        $user->avatar_path = $request->file('avatar')->store('avatars', 'public');
+        $uploadDisk = config('filesystems.uploads_disk', 'public');
+        $user->avatar_path = $request->file('avatar')->store('avatars', $uploadDisk);
         $user->save();
         UserNotification::create([
             'user_id' => $user->id,
@@ -113,7 +114,7 @@ class ProfileController extends Controller
         $user = $request->user();
 
         if ($user->avatar_path) {
-            Storage::disk('public')->delete($user->avatar_path);
+            Storage::disk(config('filesystems.uploads_disk', 'public'))->delete($user->avatar_path);
             $user->avatar_path = null;
             $user->save();
             UserNotification::create([

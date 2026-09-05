@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Badge extends Model
 {
@@ -23,7 +24,9 @@ class Badge extends Model
 
         public function getImageUrlAttribute(): ?string
     {
-        return $this->image_path ? asset('storage/' . ltrim($this->image_path, '/')) : null;
+            return $this->image_path
+                ? Storage::disk(config('filesystems.uploads_disk', 'public'))->url($this->image_path)
+                : null;
     }
 
     public function users()

@@ -51,7 +51,7 @@ class BadgeController extends Controller
 
         $recipients = $data['recipients'] ?? [];
         unset($data['recipients']);
-        $data['image_path'] = $request->hasFile('image') ? $request->file('image')->store('badges', 'public') : null;
+        $data['image_path'] = $request->hasFile('image') ? $request->file('image')->store('badges', config('filesystems.uploads_disk', 'public')) : null;
         unset($data['image']);
 
         $badge = Badge::create($data);
@@ -83,9 +83,9 @@ class BadgeController extends Controller
 
         if ($request->hasFile('image')) {
             if ($badge->image_path) {
-                Storage::disk('public')->delete($badge->image_path);
+                Storage::disk(config('filesystems.uploads_disk', 'public'))->delete($badge->image_path);
             }
-            $data['image_path'] = $request->file('image')->store('badges', 'public');
+            $data['image_path'] = $request->file('image')->store('badges', config('filesystems.uploads_disk', 'public'));
         }
 
         unset($data['image']);
@@ -97,7 +97,7 @@ class BadgeController extends Controller
     public function destroy(Badge $badge): RedirectResponse
     {
         if ($badge->image_path) {
-            Storage::disk('public')->delete($badge->image_path);
+            Storage::disk(config('filesystems.uploads_disk', 'public'))->delete($badge->image_path);
         }
 
         $badge->delete();

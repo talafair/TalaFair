@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class Announcement extends Model
 {
@@ -69,6 +70,13 @@ class Announcement extends Model
     public function qrIsExpired(): bool
     {
         return $this->qr_expires_at !== null && now()->greaterThan($this->qr_expires_at);
+    }
+
+    public function getBannerUrlAttribute(): ?string
+    {
+        return $this->banner_path
+            ? Storage::disk(config('filesystems.uploads_disk', 'public'))->url($this->banner_path)
+            : null;
     }
 
     /* ------------------------------------------------------------------
@@ -156,15 +164,6 @@ class Announcement extends Model
         return collect($this->audiences ?: [])
             ->map(fn ($k) => self::AUDIENCES[$k] ?? $k)
             ->all();
-    }
-
-        public function getBannerUrlAttribute(): ?string
-    {
-            if (! $this->banner_path) {
-                return null;
-            }
-
-            return asset('storage/' . ltrim($this->banner_path, '/'));
     }
 
     /* ------------------------------------------------------------------

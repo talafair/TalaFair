@@ -43,7 +43,7 @@ class AnnouncementController extends Controller
         $announcement = new Announcement($data);
 
         if ($request->hasFile('banner')) {
-            $announcement->banner_path = $request->file('banner')->store('banners', 'public');
+            $announcement->banner_path = $request->file('banner')->store('banners', config('filesystems.uploads_disk', 'public'));
         }
 
         if ($announcement->is_event) {
@@ -92,9 +92,9 @@ class AnnouncementController extends Controller
 
         if ($request->hasFile('banner')) {
             if ($announcement->banner_path) {
-                Storage::disk('public')->delete($announcement->banner_path);
+                Storage::disk(config('filesystems.uploads_disk', 'public'))->delete($announcement->banner_path);
             }
-            $data['banner_path'] = $request->file('banner')->store('banners', 'public');
+            $data['banner_path'] = $request->file('banner')->store('banners', config('filesystems.uploads_disk', 'public'));
         }
 
         $announcement->fill($data);

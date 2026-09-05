@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -104,8 +105,8 @@ class User extends Authenticatable
         public function getAvatarUrlAttribute(): string
     {
         return $this->avatar_path
-            ? asset('storage/' . ltrim($this->avatar_path, '/'))
-            : asset('images/default-avatar.png');
+                ? Storage::disk(config('filesystems.uploads_disk', 'public'))->url($this->avatar_path)
+            : asset('images/talafair-logo.png');
     }
 
     public function isOfficial(): bool
