@@ -90,7 +90,7 @@ class AttendanceController extends Controller
         }
 
         if (! $event) {
-            return $this->fail('That QR code does not belong to any TalaFair event.');
+            return $this->fail('Invalid event QR code. Please scan the QR code for the correct event.');
         }
 
         if ($viewer->isOfficial()) {
@@ -123,7 +123,7 @@ class AttendanceController extends Controller
 
         if ($distance > $radius) {
             return $this->fail(sprintf(
-                'You are about %s m from %s. Move within %d m of the venue and scan again.',
+                'Attendance was not recorded. You are about %s m from %s. Move within %d m of the venue and scan again.',
                 number_format($distance), $event->venue_name ?: 'the venue', $radius
             ));
         }
@@ -290,8 +290,8 @@ class AttendanceController extends Controller
             'early' => $early,
             'breakdown' => $breakdown,
             'message' => $early
-                ? "Checked in early. +{$breakdown['total']} points, including the 10% early bonus."
-                : "Checked in. +{$breakdown['total']} points.",
+                ? "Attendance recorded successfully. Checked in early and earned +{$breakdown['total']} points, including the 10% early bonus."
+                : "Attendance recorded successfully. You earned +{$breakdown['total']} points.",
         ]);
     }
 

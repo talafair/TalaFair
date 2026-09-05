@@ -168,12 +168,13 @@
         stopBtn.classList.add('d-none');
         startBtn.classList.remove('d-none');
       } else {
-        show(false, data.message || 'That scan could not be accepted.');
+        const scanMessage = data.message || 'Attendance was not recorded. That scan could not be accepted.';
         if (OFFICIAL) {
           manualForm?.classList.remove('d-none');
           manualToggle?.classList.add('d-none');
-          show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>QR scan not accepted.</div><div class="small mt-1">You can keep trying the scanner or enter the resident\'s Unique ID Number below.</div>');
+          show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>' + scanMessage + '</div><div class="small mt-1">You can keep trying the scanner or enter the resident\'s Unique ID Number below.</div>');
         } else {
+          show(false, scanMessage);
           document.getElementById('resident-id-fallback')?.classList.remove('d-none');
         }
       }

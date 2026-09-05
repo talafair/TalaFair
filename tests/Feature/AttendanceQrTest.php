@@ -51,6 +51,60 @@ class AttendanceQrTest extends TestCase
         $this->assertDatabaseCount('attendances', 1);
     }
 
+    public function test_wrong_event_qr_is_rejected_with_a_clear_message(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+
+        $response = $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => 'not-the-event-qr',
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('ok', false)
+            ->assertJsonPath('message', 'Residents must scan this event\'s QR code.');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_correct_event_qr_outside_the_radius_does_not_record_attendance(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+
+        $response = $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => (float) config('talafair.barangay_lat') + 1,
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('ok', false)
+            ->assertJsonFragment(['message' => 'Attendance was not recorded. You are about 111,195 m from the venue. Move within 300 m of the venue and scan again.']);
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_correct_event_qr_and_location_record_attendance_successfully(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+
+        $response = $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('message', 'Attendance recorded successfully. You earned +100 points.');
+        $this->assertDatabaseHas('attendances', [
+            'announcement_id' => $event->id,
+            'user_id' => $resident->id,
+        ]);
+    }
+
     public function test_invalid_or_duplicate_manual_id_is_rejected_without_extra_points(): void
     {
         [$official, $resident, $event] = $this->attendanceSetup();
