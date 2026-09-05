@@ -26,21 +26,21 @@
         @php
             $avatarAlts = ['alt-1', 'alt-2', 'alt-3', 'alt-4', ''];
             $podiumMeta = [
-                ['class' => 'podium-1', 'order' => 'podium-order-1', 'rank' => '1', 'avatar' => 'avatar-xl', 'title' => 'h4', 'score' => 'fs-3 fw-bold text-gold'],
-                ['class' => 'podium-2', 'order' => 'podium-order-2', 'rank' => '2', 'avatar' => 'avatar-lg', 'title' => 'h5', 'score' => 'fs-4 fw-bold text-yg'],
-                ['class' => 'podium-3', 'order' => 'podium-order-3', 'rank' => '3', 'avatar' => 'avatar-lg', 'title' => 'h5', 'score' => 'fs-4 fw-bold text-yg'],
+                ['class' => 'podium-1', 'order' => 'order-lg-2 order-1', 'rank' => '1', 'avatar' => 'avatar-xl', 'title' => 'h4', 'score' => 'fs-3 fw-bold text-gold'],
+                ['class' => 'podium-2', 'order' => 'order-lg-1 order-2', 'rank' => '2', 'avatar' => 'avatar-lg', 'title' => 'h5', 'score' => 'fs-4 fw-bold text-yg'],
+                ['class' => 'podium-3', 'order' => 'order-lg-3 order-3', 'rank' => '3', 'avatar' => 'avatar-lg', 'title' => 'h5', 'score' => 'fs-4 fw-bold text-yg'],
             ];
         @endphp
 
         {{-- Top 3 podium --}}
-        <div class="top-three-podium mb-4 pt-2">
+        <div class="row g-4 justify-content-center align-items-end mb-5 pt-3">
             @foreach (($ranking === 'family' ? $households->take(3) : $podium) as $i => $entry)
                 @php
                     $player = $ranking === 'family' ? $entry['head'] : $entry;
                     $entryPoints = $ranking === 'family' ? $entry['points'] : $player->points;
                 @endphp
-                <div class="podium-slot {{ $podiumMeta[$i]['order'] }}">
-                    <div class="card podium-card {{ $podiumMeta[$i]['class'] }} text-center">
+                <div class="col-10 col-sm-6 col-lg-3 {{ $podiumMeta[$i]['order'] }}">
+                    <div class="card podium-card {{ $podiumMeta[$i]['class'] }} text-center p-4 {{ $i === 0 ? 'pb-5' : '' }}">
                         <span class="podium-rank">{!! $podiumMeta[$i]['rank'] !!}</span>
                         @if ($player->avatar_path)<img src="{{ $player->avatar_url }}" alt="{{ $player->name }}" class="avatar {{ $podiumMeta[$i]['avatar'] }} object-fit-cover mx-auto mt-3 mb-2">@else<span class="avatar {{ $podiumMeta[$i]['avatar'] }} {{ $avatarAlts[$i % count($avatarAlts)] }} mx-auto mt-3 mb-2">{{ $player->initials }}</span>@endif
                         <div class="{{ $podiumMeta[$i]['title'] }} fw-bold mb-0">
@@ -155,65 +155,9 @@
 
 @push('styles')
 <style>
-    .top-three-podium {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        align-items: end;
-        gap: clamp(.35rem, 2vw, 1.5rem);
-        width: min(900px, 100%);
-        margin-inline: auto;
-    }
-
-    .podium-order-1 { grid-column: 2; grid-row: 1; }
-    .podium-order-2 { grid-column: 1; grid-row: 1; }
-    .podium-order-3 { grid-column: 3; grid-row: 1; }
-
-    .top-three-podium .podium-card {
-        padding: clamp(.55rem, 1.8vw, 1.5rem) clamp(.35rem, 1.5vw, 1rem) !important;
-    }
-
-    .top-three-podium .podium-rank {
-        top: clamp(-1.1rem, -1.5vw, -.65rem);
-        width: clamp(1.65rem, 4vw, 2.5rem);
-        height: clamp(1.65rem, 4vw, 2.5rem);
-        font-size: clamp(.75rem, 1.5vw, 1rem);
-    }
-
-    .top-three-podium .avatar-xl,
-    .top-three-podium .avatar-lg {
-        width: clamp(3rem, 11vw, 7rem);
-        height: clamp(3rem, 11vw, 7rem);
-        margin-top: clamp(1.15rem, 3vw, 2rem) !important;
-        margin-bottom: clamp(.25rem, 1vw, .5rem) !important;
-    }
-
-    .top-three-podium .podium-card h4,
-    .top-three-podium .podium-card h5 {
-        font-size: clamp(.72rem, 2.3vw, 1.35rem);
-        line-height: 1.15;
-        overflow-wrap: anywhere;
-    }
-
-    .top-three-podium .podium-card .small {
-        font-size: clamp(.58rem, 1.5vw, .875rem);
-        line-height: 1.15;
-        overflow-wrap: anywhere;
-    }
-
-    .top-three-podium .leader-badges {
-        gap: clamp(.1rem, .7vw, .35rem);
-        margin-bottom: clamp(.35rem, 1vw, .75rem) !important;
-    }
-
     .leader-badges { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
     .leader-badge { width: 2.5rem; height: 2.5rem; object-fit: contain; }
-    .top-three-podium .podium-card .leader-badge { width: clamp(1.2rem, 5vw, 2.85rem); height: clamp(1.2rem, 5vw, 2.85rem); }
-
-    @media (max-width: 575.98px) {
-        .page-header { margin-bottom: 1.5rem !important; }
-        .top-three-podium { gap: .3rem; }
-        .top-three-podium .podium-card .badge { font-size: .52rem; padding: .2rem .3rem !important; }
-    }
+    .podium-card .leader-badge { width: 2.85rem; height: 2.85rem; }
 
     .family-details { background: #fffef4; margin: -.75rem -1rem; padding: 1rem .75rem .7rem; }
     .family-member-list { background: #fff; }
