@@ -52,22 +52,23 @@
 
     @if ($officialMode && $announcement && ! $activityMode)
       <button id="manual-toggle" type="button" class="btn btn-outline-dark w-100 mt-3">
-        <i class="bi bi-keyboard me-1"></i>Can't scan? Enter Unique QR ID manually
+        <i class="bi bi-keyboard me-1"></i>QR code not scanning? Enter Resident Unique ID instead
       </button>
+      <div class="form-text mt-2">You can keep trying the QR scanner as many times as needed, or use the manual Unique ID option.</div>
       <form id="manual-form" class="border rounded-3 p-3 mt-3 d-none">
-        <label for="unique-id" class="form-label fw-semibold">Unique QR ID</label>
+        <label for="unique-id" class="form-label fw-semibold">Resident Unique ID Number</label>
         <div class="input-group">
-          <input id="unique-id" class="form-control" placeholder="Z2-26-000000001" maxlength="32">
+          <input id="unique-id" class="form-control" placeholder="Z2-26-000000001" maxlength="32" autocomplete="off">
           <button class="btn btn-dark" type="submit">Verify</button>
         </div>
-        <div class="form-text">Enter the resident's existing Unique QR ID from their ID card.</div>
+        <div class="form-text">Enter the resident's existing Unique ID Number from their ID card.</div>
         <button id="manual-back" type="button" class="btn btn-link btn-sm px-0">Back to scanner</button>
       </form>
     @endif
 
     @if (! $officialMode)
       <div id="resident-id-fallback" class="alert alert-warning d-none mt-3">
-        <div class="fw-semibold"><i class="bi bi-person-badge me-1"></i>QR scanning did not work after 3 attempts.</div>
+        <div class="fw-semibold"><i class="bi bi-person-badge me-1"></i>QR scanning is unavailable.</div>
         <div class="small mt-1">Ask an official to scan your digital ID card instead.</div>
         <a href="{{ route('id-card.show') }}" class="btn btn-sm btn-warning mt-2"><i class="bi bi-person-badge me-1"></i>Open my ID card</a>
       </div>
@@ -171,6 +172,7 @@
         if (OFFICIAL) {
           manualForm?.classList.remove('d-none');
           manualToggle?.classList.add('d-none');
+          show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>QR scan not accepted.</div><div class="small mt-1">You can keep trying the scanner or enter the resident\'s Unique ID Number below.</div>');
         } else {
           document.getElementById('resident-id-fallback')?.classList.remove('d-none');
         }
@@ -248,9 +250,16 @@
       stopBtn.classList.remove('d-none');
       document.getElementById('permission-help')?.classList.add('d-none');
     } catch (e) {
-      show(false, e.message.includes('location')
+      const cameraMessage = e.message.includes('location')
         ? e.message + ' Allow location access, then press Open camera again.'
-        : 'Camera access was denied or could not start. Allow camera access in your browser settings, then try again. On a phone this page must be served over HTTPS.');
+        : 'Camera access was denied or could not start. Allow camera access in your browser settings, then try again. On a phone this page must be served over HTTPS.';
+      show(false, OFFICIAL && manualToggle
+        ? cameraMessage + '<div class="small fw-semibold mt-2">Use the Resident Unique ID Number fallback below if scanning is unavailable.</div>'
+        : cameraMessage);
+      if (OFFICIAL && manualForm && manualToggle) {
+        manualForm.classList.remove('d-none');
+        manualToggle.classList.add('d-none');
+      }
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Camera and location permission are still required.';
     }
   });

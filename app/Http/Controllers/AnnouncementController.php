@@ -6,6 +6,8 @@ use App\Models\Announcement;
 use App\Models\EventReminder;
 use App\Models\UserNotification;
 use App\Models\EventRaffleEntry;
+use App\Models\EventSubstitution;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -71,12 +73,38 @@ class AnnouncementController extends Controller
 
         $myRsvp = $announcement->rsvps()->where('user_id', $user->id)->first();
         $iAmAudience = $user->belongsToAudience($announcement->audiences ?: ['public']);
+        $householdMembers = collect();
+        $substitution = null;
+
+        if ($announcement->is_event && $user->is_head_of_family) {
+            $householdMembers = User::query()
+                ->whereKeyNot($user->id)
+                ->where('is_head_of_family', false)
+                ->where(function ($query) use ($user) {
+                    $query->where('head_of_family_id', $user->id)
+                        ->orWhereRaw('LOWER(TRIM(head_of_family_name)) = ?', [strtolower(trim($user->full_name))])
+                        ->orWhere(function ($addressQuery) use ($user) {
+                            $addressQuery->whereRaw('LOWER(TRIM(house_no)) = ?', [strtolower(trim($user->house_no))])
+                                ->whereRaw('LOWER(TRIM(street)) = ?', [strtolower(trim($user->street))])
+                                ->when($user->zone !== null, fn ($q) => $q->whereRaw('LOWER(TRIM(zone)) = ?', [strtolower(trim($user->zone))]));
+                        });
+                })
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            $substitution = EventSubstitution::where('announcement_id', $announcement->id)
+                ->where('family_head_id', $user->id)
+                ->first();
+        }
 
         return view('pages.announcement-show', [
             'announcement' => $announcement,
             'myRsvp'       => $myRsvp,
             'iAmAudience'  => $iAmAudience,
             'stats'        => $this->statistics($announcement),
+            'householdMembers' => $householdMembers,
+            'substitution' => $substitution,
         ]);
     }
 

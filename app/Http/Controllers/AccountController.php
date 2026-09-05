@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Announcement;
+use App\Models\User;
 use App\Models\EventSubstitution;
 use App\Models\UserNotification;
 use Illuminate\Http\Request;
@@ -55,13 +55,6 @@ class AccountController extends Controller
                 ->get();
         }
 
-        $upcomingEvents = $householdHead && $householdHead->id === $user->id
-            ? Announcement::upcoming()->orderBy('event_start_at')->take(10)->get()
-            : collect();
-        $substitutions = $householdHead && $householdHead->id === $user->id
-            ? EventSubstitution::with(['announcement', 'substitute'])->where('family_head_id', $user->id)->get()->keyBy('announcement_id')
-            : collect();
-
         return view('pages.account', [
             'user' => $user,
             'rank' => $rank,
@@ -69,8 +62,6 @@ class AccountController extends Controller
             'totalSpins' => $user->spins()->count(),
             'householdMembers' => $householdMembers,
             'householdHead' => $householdHead,
-            'upcomingEvents' => $upcomingEvents,
-            'substitutions' => $substitutions,
         ]);
     }
 

@@ -98,31 +98,6 @@
               <p class="small text-secondary mb-0">No registered household members found yet.</p>
             @endforelse
 
-            @if ($householdHead->id === $user->id && $householdMembers->isNotEmpty() && $upcomingEvents->isNotEmpty())
-              <hr class="my-4">
-              <h6 class="fw-bold mb-1"><i class="bi bi-person-check-fill me-1 text-yg"></i>Assign a substitute</h6>
-              <p class="small text-secondary mb-3">Choose a household member to attend an upcoming event or meeting on your behalf. Points go to the person who attends.</p>
-              @foreach ($upcomingEvents as $event)
-                <form method="POST" action="{{ route('account.substitute') }}" class="row g-2 align-items-end mb-3">
-                  @csrf
-                  <input type="hidden" name="announcement_id" value="{{ $event->id }}">
-                  <div class="col-md-5">
-                    <label class="form-label small fw-semibold">Event or meeting</label>
-                    <div class="form-control bg-light">{{ $event->title }} <span class="small text-secondary">· {{ $event->event_start_at?->format('M j, Y g:i A') }}</span></div>
-                  </div>
-                  <div class="col-md-5">
-                    <label class="form-label small fw-semibold" for="substitute_{{ $event->id }}">Household member</label>
-                    <select id="substitute_{{ $event->id }}" name="substitute_user_id" class="form-select" required>
-                      <option value="">Select a member</option>
-                      @foreach ($householdMembers as $member)
-                        <option value="{{ $member->id }}" @selected($substitutions->get($event->id)?->substitute_user_id === $member->id)>{{ $member->full_name }}</option>
-                      @endforeach
-                    </select>
-                  </div>
-                  <div class="col-md-2"><button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Assign</button></div>
-                </form>
-              @endforeach
-            @endif
           </div>
         </div>
       </div>

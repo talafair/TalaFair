@@ -69,13 +69,13 @@
                 <div class="form-check border rounded-3 px-3 py-2 ps-5">
                   <input class="form-check-input" type="radio" name="status" id="rsvp_yes" value="attending" required
                          @checked(old('status', $myRsvp?->status) === 'attending')
-                         onchange="document.getElementById('reason_wrap').hidden = true">
+                        onchange="document.getElementById('reason_wrap').hidden = true; document.getElementById('substitute_wrap')?.setAttribute('hidden', '')">
                   <label class="form-check-label" for="rsvp_yes">Yes, I will attend</label>
                 </div>
                 <div class="form-check border rounded-3 px-3 py-2 ps-5">
                   <input class="form-check-input" type="radio" name="status" id="rsvp_no" value="not_attending" required
                          @checked(old('status', $myRsvp?->status) === 'not_attending')
-                         onchange="document.getElementById('reason_wrap').hidden = false">
+                        onchange="document.getElementById('reason_wrap').hidden = false; document.getElementById('substitute_wrap')?.removeAttribute('hidden')">
                   <label class="form-check-label" for="rsvp_no">No, I cannot</label>
                 </div>
               </div>
@@ -91,6 +91,35 @@
                 {{ $myRsvp ? 'Update my answer' : 'Send my answer' }}
               </button>
             </form>
+
+            @if (auth()->user()->is_head_of_family)
+              @if ($householdMembers->isNotEmpty())
+                <div id="substitute_wrap" class="border rounded-3 p-3 mt-3 bg-body-secondary"
+                     @if(old('status', $myRsvp?->status) !== 'not_attending') hidden @endif>
+                  <div class="fw-semibold"><i class="bi bi-person-check-fill me-1 text-yg"></i>Assign a substitute</div>
+                  <div class="small text-secondary mb-2">Choose a household member to attend on your behalf. Points go to the person who attends.</div>
+                  <form method="POST" action="{{ route('account.substitute') }}" class="row g-2 align-items-end">
+                    @csrf
+                    <input type="hidden" name="announcement_id" value="{{ $announcement->id }}">
+                    <div class="col-md-8">
+                      <label class="form-label small fw-semibold" for="substitute_{{ $announcement->id }}">Household member</label>
+                      <select id="substitute_{{ $announcement->id }}" name="substitute_user_id" class="form-select" required>
+                        <option value="">Select a member</option>
+                        @foreach ($householdMembers as $member)
+                          <option value="{{ $member->id }}" @selected($substitution?->substitute_user_id === $member->id)>{{ $member->full_name }}</option>
+                        @endforeach
+                      </select>
+                    </div>
+                    <div class="col-md-4"><button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Assign</button></div>
+                  </form>
+                </div>
+              @else
+                <div id="substitute_wrap" class="alert alert-light border small mt-3 mb-0"
+                     @if(old('status', $myRsvp?->status) !== 'not_attending') hidden @endif>
+                  No eligible household members are available to assign as a substitute.
+                </div>
+              @endif
+            @endif
           @else
             <p class="text-secondary mb-0">
               The survey closed on {{ $announcement->rsvp_due_at?->format('M j, Y g:i A') }}.
