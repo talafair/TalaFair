@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\EventRsvp;
+use App\Models\EventSubstitution;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,7 +20,11 @@ class RsvpController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        if (! $user->belongsToAudience($announcement->audiences ?: ['public'])) {
+        $isAssignedSubstitute = EventSubstitution::where('announcement_id', $announcement->id)
+            ->where('substitute_user_id', $user->id)
+            ->exists();
+
+        if (! $user->belongsToAudience($announcement->audiences ?: ['public']) && ! $isAssignedSubstitute) {
             return back()->with('error', 'This survey is for a different audience.');
         }
 

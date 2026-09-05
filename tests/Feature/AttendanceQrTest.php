@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Announcement;
 use App\Models\Attendance;
+use App\Models\EventRsvp;
+use App\Models\EventSubstitution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -141,6 +143,50 @@ class AttendanceQrTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_assigned_substitute_can_answer_the_event_rsvp(): void
+    {
+        [, $substitute, $event] = $this->substituteSetup();
+
+        $this->actingAs($substitute)
+            ->get(route('announcements.show', $event))
+            ->assertOk()
+            ->assertSee('You were assigned to attend this event as a substitute.');
+
+        $this->actingAs($substitute)->post(route('announcements.rsvp', $event), [
+            'status' => 'attending',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('event_rsvps', [
+            'announcement_id' => $event->id,
+            'user_id' => $substitute->id,
+            'status' => 'attending',
+        ]);
+    }
+
+    public function test_assigned_substitute_can_change_their_answer_to_no(): void
+    {
+        [, $substitute, $event] = $this->substituteSetup();
+
+        EventRsvp::create([
+            'announcement_id' => $event->id,
+            'user_id' => $substitute->id,
+            'status' => 'attending',
+            'responded_at' => now(),
+        ]);
+
+        $this->actingAs($substitute)->post(route('announcements.rsvp', $event), [
+            'status' => 'not_attending',
+            'reason' => 'I am unavailable.',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('event_rsvps', [
+            'announcement_id' => $event->id,
+            'user_id' => $substitute->id,
+            'status' => 'not_attending',
+            'reason' => 'I am unavailable.',
+        ]);
+    }
+
     private function attendanceSetup(): array
     {
         $official = User::factory()->create([
@@ -170,5 +216,26 @@ class AttendanceQrTest extends TestCase
         ]);
 
         return [$official, $resident, $event];
+    }
+
+    private function substituteSetup(): array
+    {
+        [$official, $substitute, $event] = $this->attendanceSetup();
+        $head = User::factory()->create([
+            'role' => 'resident',
+            'is_head_of_family' => true,
+        ]);
+
+        $event->update([
+            'audiences' => ['family_heads'],
+            'rsvp_due_at' => now()->addHour(),
+        ]);
+        EventSubstitution::create([
+            'announcement_id' => $event->id,
+            'family_head_id' => $head->id,
+            'substitute_user_id' => $substitute->id,
+        ]);
+
+        return [$official, $substitute, $event];
     }
 }

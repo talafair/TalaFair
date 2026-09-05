@@ -72,7 +72,13 @@ class AnnouncementController extends Controller
         $announcement->load('creator', 'editor');
 
         $myRsvp = $announcement->rsvps()->where('user_id', $user->id)->first();
-        $iAmAudience = $user->belongsToAudience($announcement->audiences ?: ['public']);
+        $assignedSubstitution = $announcement->is_event
+            ? EventSubstitution::where('announcement_id', $announcement->id)
+                ->where('substitute_user_id', $user->id)
+                ->first()
+            : null;
+        $iAmAudience = $user->belongsToAudience($announcement->audiences ?: ['public'])
+            || $assignedSubstitution !== null;
         $householdMembers = collect();
         $substitution = null;
 
@@ -105,6 +111,7 @@ class AnnouncementController extends Controller
             'stats'        => $this->statistics($announcement),
             'householdMembers' => $householdMembers,
             'substitution' => $substitution,
+            'assignedSubstitution' => $assignedSubstitution,
         ]);
     }
 

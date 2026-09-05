@@ -50,6 +50,12 @@
         <div class="card-body p-4">
           <h6 class="fw-bold mb-3"><i class="bi bi-check2-square me-1 text-yg"></i>Will you attend?</h6>
 
+          @if ($assignedSubstitution)
+            <div class="alert alert-info border small">
+              <i class="bi bi-person-check-fill me-1"></i>You were assigned to attend this event as a substitute.
+            </div>
+          @endif
+
           @if ($myRsvp)
             <p class="mb-3">
               <span class="badge {{ $myRsvp->isAttending() ? 'text-bg-success' : 'text-bg-secondary' }}">
