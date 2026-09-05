@@ -1,0 +1,197 @@
+@extends('layouts.app')
+
+@section('title', $announcement->title)
+
+@section('content')
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+
+    {{-- Details --}}
+    <div class="card yg-card overflow-hidden mb-4">
+      @if ($announcement->banner_url)
+        <img src="{{ $announcement->banner_url }}" alt="" class="card-img-top object-fit-cover" style="height:14rem;">
+      @endif
+
+      <div class="card-body p-4">
+        <span class="badge text-bg-light text-uppercase">{{ $announcement->category }}</span>
+        <h3 class="fw-bold mt-3">{{ $announcement->title }}</h3>
+
+        <div class="mt-3">
+          @include('pages.partials.announcement-details', ['announcement' => $announcement])
+        </div>
+
+        @if ($announcement->is_event && (! $announcement->isParticipationActivity() || auth()->user()->isOfficial()))
+          <a href="{{ route('announcements.scan', $announcement) }}" class="btn btn-primary mt-3">
+            <i class="bi bi-qr-code-scan me-1"></i>
+            {{ $announcement->isParticipationActivity() ? 'Scan participants' : (auth()->user()->isOfficial() ? 'Scan resident ID' : 'Scan event QR') }}
+          </a>
+          @if ($announcement->isParticipationActivity())
+            <span class="small text-secondary ms-2">{{ $announcement->participation_points }} points per resident</span>
+          @endif
+        @endif
+
+        <hr>
+        <p class="small text-secondary mb-0">
+          Posted by {{ $announcement->creator?->full_name ?? 'Barangay office' }}
+          ({{ $announcement->creator?->unique_id ?? '—' }})
+          on {{ $announcement->created_at->format('M j, Y g:i A') }}
+          @if ($announcement->editor && $announcement->updated_at->gt($announcement->created_at))
+            &middot; last updated by {{ $announcement->editor->full_name }}
+            ({{ $announcement->editor->unique_id }})
+            on {{ $announcement->updated_at->format('M j, Y g:i A') }}
+          @endif
+        </p>
+      </div>
+    </div>
+
+    {{-- Attendance survey (audience only) --}}
+    @if ($announcement->is_event && $iAmAudience)
+      <div class="card yg-card mb-4">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3"><i class="bi bi-check2-square me-1 text-yg"></i>Will you attend?</h6>
+
+          @if ($myRsvp)
+            <p class="mb-3">
+              <span class="badge {{ $myRsvp->isAttending() ? 'text-bg-success' : 'text-bg-secondary' }}">
+                {{ $myRsvp->isAttending() ? 'You said yes' : 'You said no' }}
+              </span>
+              <span class="small text-secondary ms-1">answered {{ $myRsvp->responded_at->diffForHumans() }}</span>
+              @if ($myRsvp->reason)
+                <span class="d-block small text-secondary mt-1">Reason: {{ $myRsvp->reason }}</span>
+              @endif
+            </p>
+          @endif
+
+          @if ($announcement->surveyIsOpen())
+            <form method="POST" action="{{ route('announcements.rsvp', $announcement) }}">
+              @csrf
+              <div class="d-flex flex-wrap gap-3 mb-3">
+                <div class="form-check border rounded-3 px-3 py-2 ps-5">
+                  <input class="form-check-input" type="radio" name="status" id="rsvp_yes" value="attending" required
+                         @checked(old('status', $myRsvp?->status) === 'attending')
+                         onchange="document.getElementById('reason_wrap').hidden = true">
+                  <label class="form-check-label" for="rsvp_yes">Yes, I will attend</label>
+                </div>
+                <div class="form-check border rounded-3 px-3 py-2 ps-5">
+                  <input class="form-check-input" type="radio" name="status" id="rsvp_no" value="not_attending" required
+                         @checked(old('status', $myRsvp?->status) === 'not_attending')
+                         onchange="document.getElementById('reason_wrap').hidden = false">
+                  <label class="form-check-label" for="rsvp_no">No, I cannot</label>
+                </div>
+              </div>
+
+              <div id="reason_wrap" class="mb-3" @if(old('status', $myRsvp?->status) !== 'not_attending') hidden @endif>
+                <label class="form-label">Why not?</label>
+                <textarea name="reason" rows="3"
+                          class="form-control @error('reason') is-invalid @enderror">{{ old('reason', $myRsvp?->reason) }}</textarea>
+                @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+              </div>
+
+              <button class="btn btn-primary fw-semibold px-4">
+                {{ $myRsvp ? 'Update my answer' : 'Send my answer' }}
+              </button>
+            </form>
+          @else
+            <p class="text-secondary mb-0">
+              The survey closed on {{ $announcement->rsvp_due_at?->format('M j, Y g:i A') }}.
+              You can still check in at the venue with the event QR.
+            </p>
+          @endif
+        </div>
+      </div>
+    @endif
+
+    {{-- Statistics (residents and officials both see this) --}}
+    @if ($announcement->is_event)
+      <div class="card yg-card mb-4">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-baseline mb-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-bar-chart me-1 text-yg"></i>Attendance so far</h6>
+            <a href="{{ route('announcements.statistics', $announcement) }}" class="small fw-semibold">Full breakdown</a>
+          </div>
+
+          <div class="row g-3 text-center">
+            @foreach ([
+              'Notified' => $stats['audience'],
+              'Confirmed yes' => $stats['attending'],
+              'Said no' => $stats['not_attending'],
+              'Checked in' => $stats['scanned'],
+            ] as $label => $value)
+              <div class="col-6 col-md-3">
+                <div class="bg-body-secondary rounded-3 py-3">
+                  <div class="h4 fw-bold mb-0">{{ number_format($value) }}</div>
+                  <div class="small text-uppercase text-secondary">{{ $label }}</div>
+                </div>
+              </div>
+            @endforeach
+          </div>
+
+          <div class="progress mt-3" style="height:.5rem;" role="progressbar">
+            <div class="progress-bar bg-success"
+                 style="width: {{ $stats['audience'] ? min(100, round($stats['attending'] / $stats['audience'] * 100)) : 0 }}%"></div>
+          </div>
+          <p class="small text-secondary mt-2 mb-0">
+            {{ $stats['no_response'] }} resident(s) have not answered yet.
+            {{ $stats['early'] }} of {{ $stats['scanned'] }} check-ins were early.
+          </p>
+        </div>
+      </div>
+    @endif
+
+    {{-- Official controls --}}
+    @if ($announcement->is_event && auth()->user()->isOfficial())
+      <div class="card yg-card">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3"><i class="bi bi-sliders me-1 text-yg"></i>Official controls</h6>
+
+          <div class="row g-4">
+            <div class="col-md-6">
+              <form method="POST" action="{{ route('announcements.extend', $announcement) }}">
+                @csrf @method('PATCH')
+                <label class="form-label">Extend the confirmation deadline</label>
+                <input type="datetime-local" name="rsvp_due_at" class="form-control"
+                       value="{{ $announcement->rsvp_due_at?->format('Y-m-d\TH:i') }}">
+                <button class="btn btn-dark btn-sm fw-semibold mt-2">Extend</button>
+              </form>
+            </div>
+
+            <div class="col-md-6">
+              <form method="POST" action="{{ route('announcements.remind', $announcement) }}">
+                @csrf
+                <label class="form-label">Remind the audience</label>
+                <select name="kind" class="form-select">
+                  <option value="event_reminder">Event is tomorrow (last 24 hours only)</option>
+                  <option value="survey_closing">Survey is closing (last 24 hours only)</option>
+                </select>
+                <input name="message" placeholder="Optional note" class="form-control mt-2">
+                <button class="btn btn-primary btn-sm fw-semibold mt-2">Send reminder</button>
+              </form>
+            </div>
+          </div>
+
+          <hr>
+          @unless ($announcement->isParticipationActivity())
+            <a href="{{ route('announcements.qr', $announcement) }}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-qr-code me-1"></i>Event QR
+            </a>
+          @endunless
+
+          @if ($announcement->reminders()->exists())
+            <ul class="small text-secondary mt-3 mb-0 ps-3">
+              @foreach ($announcement->reminders()->with('sender')->latest()->take(5)->get() as $reminder)
+                <li>
+                  {{ $reminder->created_at->format('M j, g:i A') }} —
+                  {{ $reminder->kind === 'event_reminder' ? 'Event reminder' : 'Survey reminder' }}
+                  to {{ $reminder->recipients_count }} resident(s), sent by
+                  {{ $reminder->sender?->full_name }} ({{ $reminder->sender?->unique_id }})
+                </li>
+              @endforeach
+            </ul>
+          @endif
+        </div>
+      </div>
+    @endif
+  </div>
+</div>
+@endsection
+

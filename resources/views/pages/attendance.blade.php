@@ -1,0 +1,258 @@
+@extends('layouts.app')
+
+@section('title', 'Scan Attendance')
+
+@section('content')
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-5">
+
+    <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>{{ $activityMode ? 'Scan activity participants' : ($officialMode ? 'Scan resident attendance' : 'Scan for attendance') }}</h4>
+    <p class="text-secondary">
+      Point your camera at the {{ $activityMode ? 'resident ID QR after each activity' : ($officialMode ? 'resident ID QR' : 'event QR') }}.
+      Scanning opens two hours before the event starts and only works inside the venue.
+    </p>
+
+    @if ($announcement)
+      <div class="alert alert-light border">
+        <strong>{{ $announcement->title }}</strong>
+        <div class="small text-secondary">{{ $announcement->event_start_at?->format('M j, Y g:i A') }}</div>
+      </div>
+    @endif
+
+    @if ($openEvents->isEmpty())
+      <div class="card yg-card">
+        <div class="card-body text-center text-secondary py-5">
+          <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+          No event is open for scanning right now.
+          <a href="{{ url('/') }}" class="d-block mt-2 fw-semibold">Back to home</a>
+        </div>
+      </div>
+    @else
+      <ul class="list-group mb-3">
+        @foreach ($openEvents as $event)
+          <li class="list-group-item">
+            <div class="fw-semibold">{{ $event->title }}</div>
+            <div class="small text-secondary">
+              {{ $event->event_start_at->format('M j, g:i A') }} &middot;
+              {{ $event->venue_name ?: 'Barangay San Jose' }}
+            </div>
+          </li>
+        @endforeach
+      </ul>
+    @endif
+
+    <div id="reader" class="rounded-3 overflow-hidden bg-dark"></div>
+
+    <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
+
+    <div id="permission-help" class="alert alert-light border mt-3">
+      <div class="fw-semibold"><i class="bi bi-shield-check me-1 text-yg"></i>Camera and location permission required</div>
+      <div class="small text-secondary mt-1">Allow camera access to read the QR code and location access so TalaFair can confirm you are at the venue. Nothing starts until you choose Open camera.</div>
+    </div>
+
+    @if ($officialMode && $announcement && ! $activityMode)
+      <form id="manual-form" class="border rounded-3 p-3 mt-3 d-none">
+        <label for="unique-id" class="form-label fw-semibold">Resident unique ID</label>
+        <div class="input-group">
+          <input id="unique-id" class="form-control" placeholder="Z2-26-000000001" maxlength="32">
+          <button class="btn btn-dark" type="submit">Check in</button>
+        </div>
+        <div class="form-text">Available after three unsuccessful QR attempts. Enter the resident's unique ID from their ID card.</div>
+      </form>
+    @endif
+
+    @if (! $officialMode)
+      <div id="resident-id-fallback" class="alert alert-warning d-none mt-3">
+        <div class="fw-semibold"><i class="bi bi-person-badge me-1"></i>QR scanning did not work after 3 attempts.</div>
+        <div class="small mt-1">Ask an official to scan your digital ID card instead.</div>
+        <a href="{{ route('id-card.show') }}" class="btn btn-sm btn-warning mt-2"><i class="bi bi-person-badge me-1"></i>Open my ID card</a>
+      </div>
+    @endif
+
+    <div class="d-flex gap-2 mt-3">
+      <button id="start-btn" class="btn btn-primary flex-fill fw-semibold">
+        <i class="bi bi-camera me-1"></i>Open camera
+      </button>
+      <button id="stop-btn" class="btn btn-outline-secondary flex-fill fw-semibold d-none">Stop</button>
+    </div>
+
+    <p id="gps-status" class="form-text mt-2">
+      <i class="bi bi-geo-alt me-1"></i>Location is not shared yet.
+    </p>
+
+    <a href="{{ route('attendance.history') }}" class="btn btn-link btn-sm px-0">
+      <i class="bi bi-clock-history me-1"></i>My attendance history
+    </a>
+  </div>
+</div>
+@endsection
+
+@push('scripts')
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  const CHECK_URL = @json(route('attendance.check'));
+  const CSRF      = @json(csrf_token());
+  const PREFILLED = @json($prefilledToken);
+  const ANNOUNCEMENT_ID = @json($announcement?->id);
+  const OFFICIAL = @json($officialMode);
+  const ACTIVITY = @json($activityMode);
+
+  const resultBox = document.getElementById('result');
+  const gpsStatus = document.getElementById('gps-status');
+  const startBtn  = document.getElementById('start-btn');
+  const stopBtn   = document.getElementById('stop-btn');
+  const manualForm = document.getElementById('manual-form');
+
+  let scanner = null, busy = false, qrAttempts = 0, completed = false;
+
+  function show(ok, html) {
+    resultBox.className = 'alert mt-3 rounded-3 ' + (ok ? 'alert-success' : 'alert-danger');
+    resultBox.innerHTML = html;
+  }
+
+  function position() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('This device cannot share its location.'));
+      navigator.geolocation.getCurrentPosition(
+        p => resolve(p.coords),
+        () => reject(new Error('Turn on location so the barangay can confirm you are at the venue.')),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }
+
+  async function submit(token) {
+    if (busy || completed) return;
+    busy = true;
+    qrAttempts++;
+
+    try {
+      gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Checking your location…';
+      const coords = await position();
+      gpsStatus.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>Location accurate to about ' +
+                            Math.round(coords.accuracy) + ' m.';
+
+      const res = await fetch(ACTIVITY ? @json($announcement ? route('announcements.participation', $announcement) : route('attendance.check')) : CHECK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({
+          token: token,
+          announcement_id: ANNOUNCEMENT_ID,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.ok) {
+        completed = true;
+        show(true, ACTIVITY
+          ? '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>' + data.message + '</div>'
+          :
+          '<div class="fw-semibold mb-2"><i class="bi bi-check-circle-fill me-1"></i>' + data.message + '</div>' +
+          '<ul class="small mb-0 ps-3">' +
+            '<li>Event: ' + data.event + '</li>' +
+            '<li>Base points: ' + data.breakdown.base + '</li>' +
+            '<li>Engagement bonus: +' + data.breakdown.early_bonus + '</li>' +
+            '<li class="fw-semibold">Total: ' + data.breakdown.total + '</li>' +
+          '</ul>');
+        if (scanner) scanner.stop().catch(() => {});
+        stopBtn.classList.add('d-none');
+        startBtn.classList.remove('d-none');
+      } else {
+        show(false, data.message || 'That scan could not be accepted.');
+        if (qrAttempts >= 3) {
+          if (OFFICIAL) {
+            manualForm?.classList.remove('d-none');
+            show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Three QR attempts used.</div><div class="small mt-1">Enter the resident unique ID from their ID card below.</div>');
+          } else {
+            document.getElementById('resident-id-fallback')?.classList.remove('d-none');
+            show(false, '<div class="fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>QR scanning did not work after 3 attempts.</div><div class="small mt-1">Ask an official to scan your ID card.</div>');
+          }
+          if (scanner) scanner.stop().catch(() => {});
+          stopBtn.classList.add('d-none');
+          startBtn.classList.remove('d-none');
+        }
+      }
+    } catch (err) {
+      show(false, err.message);
+    } finally {
+      busy = false;
+    }
+  }
+
+  manualForm?.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    if (completed) return;
+    try {
+      const uniqueId = document.getElementById('unique-id');
+      if (!uniqueId.value.trim()) {
+        show(false, 'Enter the resident unique ID from their ID card.');
+        return;
+      }
+      const coords = await position();
+      const res = await fetch(@json(route('attendance.check-by-id')), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        body: JSON.stringify({
+          announcement_id: ANNOUNCEMENT_ID,
+          unique_id: uniqueId.value,
+          latitude: coords.latitude,
+          longitude: coords.longitude
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        completed = true;
+        uniqueId.value = '';
+        manualForm.classList.add('d-none');
+        show(true, '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Attendance confirmed.</div><div class="small mt-1">' + data.message + '</div>');
+      } else {
+        show(false, data.message || 'That unique ID could not be accepted.');
+      }
+    } catch (err) {
+      show(false, err.message);
+    }
+  });
+
+  startBtn.addEventListener('click', async function () {
+    if (completed) return;
+    scanner = scanner || new Html5Qrcode('reader');
+    try {
+      gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Requesting location permission…';
+      await position();
+      gpsStatus.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>Location permission granted. Starting camera…';
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
+        text => submit(text),
+        () => {}
+      );
+      startBtn.classList.add('d-none');
+      stopBtn.classList.remove('d-none');
+      document.getElementById('permission-help')?.classList.add('d-none');
+    } catch (e) {
+      show(false, e.message.includes('location')
+        ? e.message + ' Allow location access, then press Open camera again.'
+        : 'Camera access was denied or could not start. Allow camera access in your browser settings, then try again. On a phone this page must be served over HTTPS.');
+      gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Camera and location permission are still required.';
+    }
+  });
+
+  stopBtn.addEventListener('click', function () {
+    if (scanner) scanner.stop().catch(() => {});
+    stopBtn.classList.add('d-none');
+    startBtn.classList.remove('d-none');
+  });
+
+  if (PREFILLED) {
+    show(true, 'Confirming your location for this event…');
+    submit(PREFILLED);
+  }
+})();
+</script>
+@endpush
+
