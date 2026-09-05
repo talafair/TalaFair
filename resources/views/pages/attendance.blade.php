@@ -4,7 +4,7 @@
 
 @section('content')
 <div class="row justify-content-center">
-  <div class="col-md-7 col-lg-5">
+  <div class="col-12 col-sm-10 col-md-7 col-lg-5">
 
     <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>{{ $activityMode ? 'Scan activity participants' : ($officialMode ? 'Scan resident attendance' : 'Scan for attendance') }}</h4>
     <p class="text-secondary">
@@ -17,6 +17,14 @@
         <strong>{{ $announcement->title }}</strong>
         <div class="small text-secondary">{{ $announcement->event_start_at?->format('M j, Y g:i A') }}</div>
       </div>
+    @elseif ($officialMode)
+      <label for="event-select" class="form-label small fw-semibold mb-1">Event to record attendance for</label>
+      <select id="event-select" class="form-select form-select-sm mb-3" @disabled($openEvents->isEmpty())>
+        <option value="">Select an event</option>
+        @foreach ($openEvents as $event)
+          <option value="{{ $event->id }}">{{ $event->title }} · {{ $event->event_start_at->format('M j, g:i A') }}</option>
+        @endforeach
+      </select>
     @endif
 
     @if ($openEvents->isEmpty())
@@ -41,7 +49,7 @@
       </ul>
     @endif
 
-    <div id="reader" class="rounded-3 overflow-hidden bg-dark"></div>
+    <div id="reader" class="rounded-3 overflow-hidden bg-dark mx-auto" style="max-width: 320px;"></div>
 
     <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
 
@@ -50,7 +58,7 @@
       <div class="small text-secondary mt-1">Allow camera access to read the QR code and location access so TalaFair can confirm you are at the venue. Nothing starts until you choose Open camera.</div>
     </div>
 
-    @if ($officialMode && $announcement && ! $activityMode)
+    @if ($officialMode && ! $activityMode)
       <button id="manual-toggle" type="button" class="btn btn-outline-dark w-100 mt-3">
         <i class="bi bi-keyboard me-1"></i>QR code not scanning? Enter Resident Unique ID instead
       </button>
@@ -59,7 +67,7 @@
         <label for="unique-id" class="form-label fw-semibold">Resident Unique ID Number</label>
         <div class="input-group">
           <input id="unique-id" class="form-control" placeholder="Z2-26-000000001" maxlength="32" autocomplete="off">
-          <button class="btn btn-dark" type="submit">Verify</button>
+          <button class="btn btn-dark" type="submit">Record attendance</button>
         </div>
         <div class="form-text">Enter the resident's existing Unique ID Number from their ID card.</div>
         <button id="manual-back" type="button" class="btn btn-link btn-sm px-0">Back to scanner</button>
@@ -110,8 +118,14 @@
   const manualForm = document.getElementById('manual-form');
   const manualToggle = document.getElementById('manual-toggle');
   const manualBack = document.getElementById('manual-back');
+  const eventSelect = document.getElementById('event-select');
 
-  let scanner = null, busy = false, completed = false;
+  let scanner = null, busy = false, completed = false, scannerPaused = false;
+  let selectedAnnouncementId = ANNOUNCEMENT_ID;
+
+  eventSelect?.addEventListener('change', () => {
+    selectedAnnouncementId = eventSelect.value || null;
+  });
 
   function show(ok, html) {
     resultBox.className = 'alert mt-3 rounded-3 ' + (ok ? 'alert-success' : 'alert-danger');
@@ -143,14 +157,17 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
         body: JSON.stringify({
           token: token,
-          announcement_id: ANNOUNCEMENT_ID,
+          announcement_id: selectedAnnouncementId,
           latitude: coords.latitude,
           longitude: coords.longitude,
           accuracy: coords.accuracy
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({
+        ok: false,
+        message: 'The attendance service is temporarily unavailable. Please try again.'
+      }));
 
       if (data.ok) {
         completed = !OFFICIAL;
@@ -165,6 +182,7 @@
             '<li class="fw-semibold">Total: ' + data.breakdown.total + '</li>' +
           '</ul>');
         if (scanner) scanner.stop().catch(() => {});
+        scannerPaused = false;
         stopBtn.classList.add('d-none');
         startBtn.classList.remove('d-none');
       } else {
@@ -179,8 +197,12 @@
         }
       }
     } catch (err) {
-      show(false, err.message);
+      show(false, 'The attendance service could not be reached. Check your connection and try again.');
     } finally {
+      if (scannerPaused && scanner) {
+        scanner.resume();
+        scannerPaused = false;
+      }
       busy = false;
     }
   }
@@ -200,13 +222,16 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
         body: JSON.stringify({
-          announcement_id: ANNOUNCEMENT_ID,
+          announcement_id: selectedAnnouncementId,
           unique_id: uniqueId.value,
           latitude: coords.latitude,
           longitude: coords.longitude
         })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({
+        ok: false,
+        message: 'The attendance service is temporarily unavailable. Please try again.'
+      }));
       if (data.ok) {
         completed = !OFFICIAL;
         uniqueId.value = '';
@@ -215,7 +240,7 @@
         show(false, data.message || 'Unique QR ID not found. Please check the ID and try again.');
       }
     } catch (err) {
-      show(false, err.message);
+      show(false, 'The attendance service could not be reached. Check your connection and try again.');
     } finally {
       busy = false;
     }
@@ -236,6 +261,11 @@
 
   startBtn.addEventListener('click', async function () {
     if (completed) return;
+    if (OFFICIAL && !selectedAnnouncementId) {
+      show(false, 'Select an event before starting the official attendance scanner.');
+      eventSelect?.focus();
+      return;
+    }
     scanner = scanner || new Html5Qrcode('reader');
     try {
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Requesting location permission…';
@@ -243,8 +273,13 @@
       gpsStatus.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>Location permission granted. Starting camera…';
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
-        text => submit(text),
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        text => {
+          if (busy || completed) return;
+          scanner.pause(true);
+          scannerPaused = true;
+          submit(text);
+        },
         () => {}
       );
       startBtn.classList.add('d-none');

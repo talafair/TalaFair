@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Announcement;
 use App\Models\AnnouncementParticipation;
 use App\Models\Attendance;
+use App\Models\EventSubstitution;
 use App\Models\User;
 use App\Models\EventRaffleEntry;
 use App\Services\Geofence;
@@ -70,6 +71,10 @@ class AttendanceController extends Controller
             'accuracy'  => ['nullable', 'numeric'],
         ]);
 
+        if (! $viewer->isOfficial() && ! $viewer->isGuest() && ! $viewer->is_verified) {
+            return $this->fail('Your account must be verified by an official before attendance can be recorded.');
+        }
+
         // The QR may hold the full URL — pull the token out of it.
         $token = trim(basename(parse_url($data['token'], PHP_URL_PATH) ?: $data['token']));
 
@@ -83,7 +88,7 @@ class AttendanceController extends Controller
             }
 
             if (! $event && ! $viewer->isOfficial()) {
-                return $this->fail('Residents must scan this event\'s QR code.');
+                return $this->fail('Invalid event QR code. Please scan this event\'s QR code.');
             }
 
             $event = $event ?: $requestedEvent;
@@ -102,16 +107,8 @@ class AttendanceController extends Controller
             return $this->fail('Guest QR scanning is not enabled for this event.');
         }
 
-        if ($event->qrIsExpired()) {
-            return $this->fail('This QR code expired on ' . $event->qr_expires_at->format('M j, Y g:i A') . '.');
-        }
-
-        if (! $event->scanningIsOpen()) {
-            $opens = $event->scanOpensAt()?->format('M j, Y g:i A');
-
-            return $this->fail(now()->lessThan($event->scanOpensAt())
-                ? "Scanning opens {$opens} — two hours before the event starts."
-                : 'This event has already ended.');
+        if ($windowError = $this->attendanceWindowError($event)) {
+            return $windowError;
         }
 
         // Geofence: use the venue pin, falling back to the barangay hall coordinates.
@@ -137,6 +134,10 @@ class AttendanceController extends Controller
             if ($attendee instanceof JsonResponse) return $attendee;
         }
 
+        if (! $this->canAttendEvent($attendee, $event)) {
+            return $this->fail('You are not eligible to attend this event.');
+        }
+
         return $this->recordAttendance($event, $attendee, $data, $distance);
     }
 
@@ -152,6 +153,8 @@ class AttendanceController extends Controller
             'unique_id'       => ['required', 'string', 'max:32'],
             'latitude'        => ['required', 'numeric', 'between:-90,90'],
             'longitude'       => ['required', 'numeric', 'between:-180,180'],
+        ], [
+            'unique_id.required' => 'Enter the resident Unique QR ID.',
         ]);
 
         $data['unique_id'] = trim($data['unique_id']);
@@ -173,8 +176,19 @@ class AttendanceController extends Controller
         $distance = Geofence::distance((float) $data['latitude'], (float) $data['longitude'], $lat, $lng);
         $radius = (int) ($event->geofence_radius ?: config('talafair.default_radius', 300));
 
-        if (! $event->scanningIsOpen() || $event->qrIsExpired() || $distance > $radius) {
-            return $this->fail('This event is not currently accepting attendance at this location.');
+        if ($windowError = $this->attendanceWindowError($event)) {
+            return $windowError;
+        }
+
+        if (! $this->canAttendEvent($attendee, $event)) {
+            return $this->fail('This resident is not eligible to attend this event.');
+        }
+
+        if ($distance > $radius) {
+            return $this->fail(sprintf(
+                'Attendance was not recorded. You are about %s m from %s. Move within %d m of the venue and try again.',
+                number_format($distance), $event->venue_name ?: 'the venue', $radius
+            ));
         }
 
         return $this->recordAttendance($event, $attendee, $data, $distance);
@@ -311,6 +325,34 @@ class AttendanceController extends Controller
         $resident = User::where('unique_id', $id)->where('role', 'resident')->first();
 
         return $resident ?: $this->fail('Invalid QR code. Resident not found.');
+    }
+
+    private function attendanceWindowError(Announcement $event): ?JsonResponse
+    {
+        if ($event->qrIsExpired()) {
+            return $this->fail('This event QR code expired on ' . $event->qr_expires_at->format('M j, Y g:i A') . '.');
+        }
+
+        if ($event->scanningIsOpen()) {
+            return null;
+        }
+
+        if ($event->scanOpensAt() && now()->lessThan($event->scanOpensAt())) {
+            return $this->fail(sprintf(
+                'Attendance scanning is not available yet. Scanning opens 2 hours before the event starts at %s.',
+                $event->event_start_at?->format('M j, Y g:i A')
+            ));
+        }
+
+        return $this->fail('Attendance scanning has ended for this event.');
+    }
+
+    private function canAttendEvent(User $user, Announcement $event): bool
+    {
+        return $user->belongsToAudience($event->audiences ?: ['public'])
+            || EventSubstitution::where('announcement_id', $event->id)
+                ->where('substitute_user_id', $user->id)
+                ->exists();
     }
 
     /** A resident's own attendance record. */

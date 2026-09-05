@@ -8,6 +8,7 @@ use App\Models\EventRsvp;
 use App\Models\EventSubstitution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AttendanceQrTest extends TestCase
@@ -66,7 +67,7 @@ class AttendanceQrTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonPath('ok', false)
-            ->assertJsonPath('message', 'Residents must scan this event\'s QR code.');
+            ->assertJsonPath('message', 'Invalid event QR code. Please scan this event\'s QR code.');
         $this->assertDatabaseCount('attendances', 0);
     }
 
@@ -105,6 +106,59 @@ class AttendanceQrTest extends TestCase
             'announcement_id' => $event->id,
             'user_id' => $resident->id,
         ]);
+    }
+
+    public function test_attendance_is_blocked_before_the_two_hour_window(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        Carbon::setTestNow($event->event_start_at->copy()->subHours(2)->subSecond());
+
+        try {
+            $response = $this->actingAs($resident)->postJson(route('attendance.check'), [
+                'token' => $event->qr_token,
+                'announcement_id' => $event->id,
+                'latitude' => config('talafair.barangay_lat'),
+                'longitude' => config('talafair.barangay_lng'),
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonPath('message', 'Attendance scanning is not available yet. Scanning opens 2 hours before the event starts at ' . $event->event_start_at->format('M j, Y g:i A') . '.');
+            $this->assertDatabaseCount('attendances', 0);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_attendance_is_allowed_exactly_at_the_two_hour_window(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        Carbon::setTestNow($event->event_start_at->copy()->subHours(2));
+
+        try {
+            $this->actingAs($resident)->postJson(route('attendance.check'), [
+                'token' => $event->qr_token,
+                'announcement_id' => $event->id,
+                'latitude' => config('talafair.barangay_lat'),
+                'longitude' => config('talafair.barangay_lng'),
+            ])->assertOk()->assertJsonPath('ok', true);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_resident_outside_the_event_audience_is_rejected(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        $event->update(['audiences' => ['family_heads']]);
+
+        $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertUnprocessable()->assertJsonPath('message', 'You are not eligible to attend this event.');
+
+        $this->assertDatabaseCount('attendances', 0);
     }
 
     public function test_invalid_or_duplicate_manual_id_is_rejected_without_extra_points(): void
@@ -196,6 +250,7 @@ class AttendanceQrTest extends TestCase
         ]);
         $resident = User::factory()->create([
             'role' => 'resident',
+            'is_verified' => true,
             'unique_id' => 'Z2-26-000000001',
             'points' => 0,
         ]);
