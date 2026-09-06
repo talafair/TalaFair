@@ -190,6 +190,85 @@ main .accordion-item + .accordion-item {
 
 .yg-navbar .navbar-toggler-icon { filter: invert(1); }
 
+.navbar-actions { margin-left: auto; gap: .25rem !important; }
+.mobile-notification { display: none; }
+
+.notification-toggle {
+    position: relative;
+    width: 2.25rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: #fff;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    font-size: 1.3rem;
+    line-height: 1;
+    box-shadow: none;
+}
+
+.notification-toggle:hover,
+.notification-toggle:focus {
+    color: #fff;
+    background: transparent;
+    box-shadow: none;
+}
+
+.notification-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, .85);
+    outline-offset: 2px;
+}
+
+.notification-badge {
+    position: absolute;
+    top: .15rem;
+    right: -.2rem;
+    min-width: 1.05rem;
+    padding: .1rem .25rem;
+    color: #fff;
+    background: #dc3545;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    font-size: .62rem;
+    line-height: 1;
+}
+
+.notification-menu {
+    width: min(82vw, 16rem);
+    max-height: min(70vh, 30rem);
+    overflow-y: auto;
+    background: linear-gradient(135deg, #dcefb0 0%, #b7d334 52%, #e7c34b 100%) !important;
+}
+
+.notification-item {
+    display: flex;
+    gap: .65rem;
+    padding: .65rem .5rem;
+    color: var(--yg-black);
+    background: linear-gradient(135deg, #f4f9df 0%, #fff8d8 100%);
+    text-decoration: none;
+    border-radius: .45rem;
+}
+
+.notification-item:hover,
+.notification-item:focus,
+.notification-item.is-unread {
+    background: linear-gradient(135deg, #cfe69a 0%, #f5d96e 100%);
+}
+
+.notification-item-icon { color: var(--yg-green); }
+.notification-item-content { min-width: 0; }
+.notification-item-title,
+.notification-item-body,
+.notification-item-time { display: block; }
+.notification-item-title { font-weight: 700; font-size: .85rem; }
+.notification-item-body { color: #6c757d; font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notification-item-time { color: #6c757d; font-size: .7rem; }
+.notification-empty { display: block; padding: 1rem .5rem; color: #6c757d; font-size: .85rem; text-align: center; }
+
 @font-face {
     font-family: "Magnolia Script";
     src: url("../Magnolia Script.otf") format("opentype");
@@ -279,14 +358,30 @@ main .accordion-item + .accordion-item {
 
 @media (max-width: 991.98px) {
     .yg-navbar { position: relative; z-index: 1060; }
+    .navbar-actions { gap: .15rem !important; }
+    .mobile-notification { display: block; }
+    .desktop-notification { display: none; }
+    .yg-navbar .notification-menu {
+        position: fixed !important;
+        top: 4.5rem !important;
+        right: .75rem !important;
+        left: auto !important;
+        width: min(82vw, 16rem);
+        max-height: 70vh;
+        margin: 0 !important;
+        transform: none !important;
+        background: linear-gradient(135deg, #dcefb0 0%, #b7d334 52%, #e7c34b 100%) !important;
+        border: 1px solid rgba(52, 58, 64, .15) !important;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, .2);
+    }
 
     .yg-navbar .navbar-collapse {
         display: block !important;
         position: fixed;
         z-index: 1065;
         inset: 0 auto 0 0;
-        width: min(80vw, 360px);
-        max-width: 85vw;
+        width: min(78vw, 320px);
+        max-width: 82vw;
         padding: .8rem .85rem 1rem;
         overflow-y: auto;
         background: var(--yg-gradient);
@@ -375,6 +470,54 @@ main .accordion-item + .accordion-item {
 @media (max-width: 359.98px) {
     .yg-navbar .navbar-collapse { width: 84vw; }
     .yg-navbar .nav-link { min-height: 2.45rem; padding: .45rem .6rem !important; font-size: .9rem; }
+}
+
+@media (max-width: 767.98px) {
+    .notifications-page {
+        padding: .75rem;
+        background: #fff;
+        border-radius: var(--yg-radius);
+    }
+
+    .notifications-page .page-header {
+        margin-bottom: 1rem !important;
+    }
+
+    .notifications-page .page-header p {
+        opacity: 1 !important;
+        color: rgba(255, 255, 255, .95);
+    }
+
+    .notifications-page .yg-card {
+        background: #fff;
+        color: var(--yg-text);
+        border-top-color: #376B28;
+    }
+
+    .notifications-page .list-group-item {
+        background: #fff !important;
+        color: var(--yg-text);
+        border-color: #e4e7eb;
+    }
+
+    .notifications-page .list-group-item h6,
+    .notifications-page .list-group-item p,
+    .notifications-page .list-group-item time {
+        color: var(--yg-text) !important;
+    }
+
+    .notifications-page .list-group-item time {
+        color: #59636d !important;
+    }
+
+    .notifications-page .notifications-empty {
+        background: #fff;
+        color: var(--yg-text);
+    }
+
+    .notifications-page .notifications-empty i {
+        color: var(--yg-secondary);
+    }
 }
 
 /* ---------- Badges / chips ---------- */

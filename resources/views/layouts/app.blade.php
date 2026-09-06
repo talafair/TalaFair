@@ -18,10 +18,49 @@
             @include('partials.logo')
             <span class="talafair-wordmark">TalaFair<span class="text-yg">.</span></span>
         </a>
-        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+        <div class="navbar-actions d-flex align-items-center gap-2">
+            @auth
+                @php
+                    $headerNotifications = auth()->user()->appNotifications()
+                        ->with(['announcement', 'survey'])
+                        ->limit(6)
+                        ->get();
+                    $unreadNotifications = auth()->user()->unreadAppNotifications()->count();
+                @endphp
+                <div class="dropdown mobile-notification">
+                    <button class="notification-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications">
+                        <i class="bi bi-bell"></i>
+                        @if ($unreadNotifications)
+                            <span class="notification-badge">{{ $unreadNotifications > 9 ? '9+' : $unreadNotifications }}</span>
+                        @endif
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end notification-menu">
+                        <div class="d-flex align-items-center justify-content-between px-2 pb-2">
+                            <span class="fw-bold">Notifications</span>
+                            <a href="{{ route('notifications.index') }}" class="small text-yg text-decoration-none">View all</a>
+                        </div>
+                        @forelse ($headerNotifications as $notification)
+                            <a href="{{ route('notifications.open', $notification) }}" class="notification-item {{ $notification->read_at ? '' : 'is-unread' }}">
+                                <span class="notification-item-icon"><i class="bi bi-bell{{ $notification->read_at ? '' : '-fill' }}"></i></span>
+                                <span class="notification-item-content">
+                                    <span class="notification-item-title">{{ $notification->title }}</span>
+                                    @if ($notification->body)
+                                        <span class="notification-item-body">{{ $notification->body }}</span>
+                                    @endif
+                                    <span class="notification-item-time">{{ $notification->created_at->diffForHumans() }}</span>
+                                </span>
+                            </a>
+                        @empty
+                            <span class="notification-empty">No notifications yet.</span>
+                        @endforelse
+                    </div>
+                </div>
+            @endauth
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                    aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
         <div class="collapse navbar-collapse" id="mainNav">
             <div class="mobile-drawer-header">
                 <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url('/') }}">
@@ -73,10 +112,10 @@
                     @endif
                 @endauth
                 @auth
-                    <li class="nav-item">
-                        <a class="nav-link {{ request()->is('notifications') ? 'active' : '' }}" href="{{ route('notifications.index') }}">
+                    <li class="nav-item desktop-notification">
+                        <a class="nav-link notification-nav-link {{ request()->is('notifications') ? 'active' : '' }}"
+                           href="{{ route('notifications.index') }}" aria-label="Notifications">
                             <i class="bi bi-bell me-1"></i>Notifications
-                            @php($unreadNotifications = auth()->user()->unreadAppNotifications()->count())
                             @if ($unreadNotifications)
                                 <span class="badge rounded-pill bg-danger ms-1">{{ $unreadNotifications > 99 ? '99+' : $unreadNotifications }}</span>
                             @endif

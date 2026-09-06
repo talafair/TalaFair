@@ -50,6 +50,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/account',     [AccountController::class, 'index'])->name('account');
     Route::post('/account/substitute', [AccountController::class, 'assignSubstitute'])->name('account.substitute');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::get('/surveys', [SurveyController::class, 'index'])->name('surveys.index');
     Route::get('/surveys/{survey}', [SurveyController::class, 'show'])->name('surveys.show');

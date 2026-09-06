@@ -147,19 +147,18 @@
 
   function togglePoints() {
     const isActivity = activities.includes(category.value);
-    if (isActivity) {
-      eventToggle.checked = true;
-      eventFields.hidden = false;
-    }
+    const isEvent = eventToggle.checked;
+    eventFields.hidden = !isEvent;
     baseWrap.classList.toggle('d-none', isActivity);
     confirmationWrap.classList.toggle('d-none', isActivity);
     activityWrap.classList.toggle('d-none', !isActivity);
     document.getElementById('activity_notice{{ $sfx }}').classList.toggle('d-none', !isActivity);
-    baseInput.required = !isActivity;
-    activityInput.required = isActivity;
+    baseInput.required = isEvent && !isActivity;
+    activityInput.required = isEvent && isActivity;
   }
 
   category.addEventListener('change', togglePoints);
+  eventToggle.addEventListener('change', togglePoints);
   togglePoints();
 })();
 </script>

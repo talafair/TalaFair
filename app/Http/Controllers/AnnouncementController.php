@@ -341,10 +341,23 @@ class AnnouncementController extends Controller
         $data['raffle_enabled'] = $data['is_event'] && $request->boolean('raffle_enabled');
 
         $isActivity = in_array($data['category'], ['ice_breaker', 'q_and_a', 'game', 'intermission'], true);
-        $data['base_points'] = $isActivity ? 0 : (int) ($data['base_points'] ?? 0);
+        $data['base_points'] = $data['is_event'] && ! $isActivity ? (int) ($data['base_points'] ?? 0) : 0;
         $data['confirmation_points'] = $data['is_event'] ? (int) ($data['confirmation_points'] ?? 0) : 0;
-        $data['weight_points'] = 0;
-        $data['participation_points'] = $isActivity ? (int) $data['participation_points'] : 0;
+        $data['weight_points'] = $data['is_event'] ? (float) ($data['weight_points'] ?? 1) : 0;
+        $data['participation_points'] = $data['is_event'] && $isActivity ? (int) ($data['participation_points'] ?? 0) : 0;
+
+        if (! $data['is_event']) {
+            foreach ([
+                'event_start_at', 'event_end_at', 'rsvp_due_at', 'audiences',
+                'venue_name', 'venue_lat', 'venue_lng',
+                'qr_token', 'qr_expires_at',
+            ] as $field) {
+                $data[$field] = null;
+            }
+            $data['geofence_radius'] = 0;
+            $data['allow_guest_scanning'] = false;
+            $data['raffle_enabled'] = false;
+        }
 
         unset($data['banner']);
 

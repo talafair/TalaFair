@@ -47,11 +47,13 @@ class UserManagementTest extends TestCase
             'username' => 'keep-this-user',
         ]);
 
-        $this->actingAs($official)
+        $response = $this->actingAs($official)
             ->get(route('users.edit', $user))
-            ->assertOk()
-            ->assertSee('value="guest"', false)
+            ->assertOk();
+
+        $response->assertSee('value="guest"', false)
             ->assertSee('Category', false);
+        $this->assertSame(1, substr_count($response->getContent(), 'id="role"'));
 
         $payload = $this->userPayload('guest', 20);
         $payload['email'] = $user->email;
