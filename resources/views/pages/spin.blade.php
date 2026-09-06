@@ -75,7 +75,7 @@
                 <div class="card-body p-3">
                     @forelse ($recentWinners as $win)
                         <div class="d-flex align-items-center gap-3 p-2 {{ !$loop->first ? 'border-top' : '' }}">
-                            @if ($win->user->avatar_path)<img src="{{ $win->user->avatar_url }}" alt="{{ $win->user->name }}" class="avatar avatar-sm object-fit-cover">@else<span class="avatar avatar-sm {{ ['alt-1','alt-2','alt-3','alt-4',''][$loop->index % 5] }}">{{ $win->user->initials }}</span>@endif
+                            <img src="{{ $win->user->avatar_url }}" alt="{{ $win->user->name }}" class="avatar avatar-sm object-fit-cover">
                             <div class="flex-grow-1">
                                 <div class="fw-semibold small">{{ $win->user->name }}</div>
                                 <div class="text-secondary" style="font-size: .75rem;">{{ $win->created_at->diffForHumans() }}</div>

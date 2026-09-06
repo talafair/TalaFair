@@ -32,7 +32,7 @@
                             <span class="home-ranking-rank fw-bold text-secondary">
                                 {{ $i + 1 }}
                             </span>
-                            @if ($player->avatar_path)<img src="{{ $player->avatar_url }}" alt="{{ $player->name }}" class="avatar avatar-sm object-fit-cover">@else<span class="avatar avatar-sm {{ ['alt-1','alt-2','alt-3','alt-4',''][$i % 5] }}">{{ $player->initials }}</span>@endif
+                            <img src="{{ $player->avatar_url }}" alt="{{ $player->name }}" class="avatar avatar-sm object-fit-cover">
                             <div class="flex-grow-1 text-truncate">
                                 <div class="fw-semibold small text-truncate">
                                     {{ $player->name }}
@@ -63,7 +63,7 @@
                 <div class="card-body p-3">
                     @forelse ($recentWinners as $i => $win)
                         <div class="home-ranking-row d-flex align-items-center gap-3 p-2 {{ !$loop->first ? 'border-top' : '' }}">
-                            @if ($win->user->avatar_path)<img src="{{ $win->user->avatar_url }}" alt="{{ $win->user->name }}" class="avatar avatar-sm object-fit-cover">@else<span class="avatar avatar-sm {{ ['alt-2','alt-4','alt-1','alt-3',''][$i % 5] }}">{{ $win->user->initials }}</span>@endif
+                            <img src="{{ $win->user->avatar_url }}" alt="{{ $win->user->name }}" class="avatar avatar-sm object-fit-cover">
                             <div class="flex-grow-1 text-truncate">
                                 <div class="fw-semibold small text-truncate">{{ $win->user->name }}</div>
                                 <div class="text-secondary" style="font-size: .75rem;">{{ $win->created_at->diffForHumans() }}</div>
@@ -91,7 +91,7 @@
                 <div class="card-body p-3">
                     @forelse ($newMembers as $i => $member)
                         <div class="home-ranking-row d-flex align-items-center gap-3 p-2 {{ !$loop->first ? 'border-top' : '' }}">
-                            @if ($member->avatar_path)<img src="{{ $member->avatar_url }}" alt="{{ $member->name }}" class="avatar avatar-sm object-fit-cover">@else<span class="avatar avatar-sm {{ ['alt-3','alt-1','alt-4','alt-2',''][$i % 5] }}">{{ $member->initials }}</span>@endif
+                            <img src="{{ $member->avatar_url }}" alt="{{ $member->name }}" class="avatar avatar-sm object-fit-cover">
                             <div class="flex-grow-1 text-truncate">
                                 <div class="fw-semibold small text-truncate">
                                     {{ $member->name }}

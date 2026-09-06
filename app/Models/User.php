@@ -108,11 +108,11 @@ class User extends Authenticatable
         ])->filter()->implode(', ');
     }
 
-        public function getAvatarUrlAttribute(): string
+    public function getAvatarUrlAttribute(): string
     {
         return $this->avatar_path
                 ? Storage::disk(config('filesystems.uploads_disk', 'public'))->url($this->avatar_path)
-            : asset('images/talafair-logo.png');
+            : asset('images/default-avatar.svg');
     }
 
     public function isOfficial(): bool

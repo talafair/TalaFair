@@ -74,7 +74,7 @@
                         <tr class="user-management-row" data-user-toggle="user-details-{{ $member->id }}" data-user-name="{{ strtolower($member->full_name) }}" data-user-category="{{ $member->role }}" data-user-status="{{ $member->isOfficial() ? 'official' : ($member->is_verified ? 'verified' : 'unverified') }}">
                             <td class="ps-4 user-member-cell">
                                 <button type="button" class="btn btn-link link-dark text-decoration-none p-0 d-flex align-items-center gap-3 text-start" data-bs-toggle="collapse" data-bs-target="#user-details-{{ $member->id }}" aria-expanded="false" aria-controls="user-details-{{ $member->id }}">
-                                    @if ($member->avatar_path)<img src="{{ $member->avatar_url }}" alt="{{ $member->name }}" class="avatar avatar-sm object-fit-cover">@else<span class="avatar avatar-sm {{ ['alt-1','alt-2','alt-3','alt-4',''][$i % 5] }}">{{ $member->initials }}</span>@endif
+                                    <img src="{{ $member->avatar_url }}" alt="{{ $member->name }}" class="avatar avatar-sm object-fit-cover">
                                     <div>
                                         <div class="fw-semibold text-truncate">
                                             {{ $member->name }}
