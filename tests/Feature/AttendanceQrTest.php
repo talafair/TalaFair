@@ -118,6 +118,81 @@ class AttendanceQrTest extends TestCase
         ]);
     }
 
+    public function test_confirmed_yes_receives_confirmation_points_only_after_attendance(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        $event->update([
+            'confirmation_points' => 25,
+            'rsvp_due_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($resident)->post(route('announcements.rsvp', $event), [
+            'status' => 'attending',
+        ])->assertRedirect();
+
+        $this->assertSame(0, $resident->fresh()->points);
+
+        $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertOk()->assertJsonPath('breakdown.total', 125);
+
+        $this->assertSame(125, $resident->fresh()->points);
+    }
+
+    public function test_resident_can_attend_without_confirmation_without_confirmation_points(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        $event->update(['confirmation_points' => 25]);
+
+        $this->actingAs($resident)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertOk()->assertJsonPath('breakdown.total', 100);
+
+        $this->assertSame(100, $resident->fresh()->points);
+    }
+
+    public function test_yes_confirmation_without_attendance_awards_no_points(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        $event->update([
+            'confirmation_points' => 25,
+            'rsvp_due_at' => now()->addHour(),
+        ]);
+
+        $this->actingAs($resident)->post(route('announcements.rsvp', $event), [
+            'status' => 'attending',
+        ])->assertRedirect();
+
+        $this->assertSame(0, $resident->fresh()->points);
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_duplicate_attendance_does_not_award_points_twice(): void
+    {
+        [, $resident, $event] = $this->attendanceSetup();
+        $event->update(['confirmation_points' => 25]);
+        $payload = [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ];
+
+        $this->actingAs($resident)->postJson(route('attendance.check'), $payload)->assertOk();
+        $this->actingAs($resident)->postJson(route('attendance.check'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'This resident has already been recorded for this event.');
+
+        $this->assertDatabaseCount('attendances', 1);
+        $this->assertSame(100, $resident->fresh()->points);
+    }
+
     public function test_attendance_is_blocked_before_the_two_hour_window(): void
     {
         [, $resident, $event] = $this->attendanceSetup();

@@ -14,6 +14,12 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable, Auditable;
 
+    public const CATEGORIES = [
+        'resident' => 'Resident',
+        'guest' => 'Guest',
+        'official' => 'Official',
+    ];
+
     protected static function booted(): void
     {
         static::saving(function (User $user): void {

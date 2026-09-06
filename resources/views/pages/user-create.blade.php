@@ -1,11 +1,11 @@
 @extends('layouts.app')
 
-@section('title', 'Add Resident')
+@section('title', 'Add User')
 
 @section('content')
   <div class="page-header p-4 p-lg-5 mb-4">
     <div class="row align-items-center position-relative" style="z-index: 1;">
-      <div class="col"><h2 class="fw-bold mb-1"><i class="bi bi-person-plus-fill me-2"></i>Add Resident</h2><p class="mb-0 opacity-75">Create an account for a resident who needs official assistance</p></div>
+      <div class="col"><h2 class="fw-bold mb-1"><i class="bi bi-person-plus-fill me-2"></i>Add User</h2><p class="mb-0 opacity-75">Create an account with the appropriate user category</p></div>
       <div class="col-auto"><a href="{{ route('users.index') }}" class="btn btn-light fw-semibold"><i class="bi bi-arrow-left me-1"></i>Back to Manage Users</a></div>
     </div>
   </div>
@@ -16,6 +16,11 @@
 
   <form method="POST" action="{{ route('users.store') }}">
     @csrf
+    <div class="card yg-card mb-4"><div class="card-body p-4"><h6 class="fw-bold text-uppercase text-secondary mb-3">Category and status</h6><div class="row g-3">
+      <div class="col-md-4"><label for="role" class="form-label">Category</label><select name="role" id="role" class="form-select" required>@foreach (\App\Models\User::CATEGORIES as $value => $label)<option value="{{ $value }}" @selected(old('role', 'resident') === $value)>{{ $label }}</option>@endforeach</select><div class="form-text">Choose the same account category available during registration.</div></div>
+      <div class="col-md-4 official-fields"><label for="official_group" class="form-label">Official group</label><select name="official_group" id="official_group" class="form-select"><option value="">Select a group</option>@foreach (config('talafair.official_positions') as $groupKey => $group)<option value="{{ $groupKey }}" @selected(old('official_group') === $groupKey)>{{ $group['label'] }}</option>@endforeach</select></div>
+      <div class="col-md-4 official-fields"><label for="official_position" class="form-label">Official position</label><select name="official_position" id="official_position" class="form-select"><option value="">Select a position</option>@foreach (config('talafair.official_positions') as $groupKey => $group) @foreach ($group['positions'] as $positionKey => $positionLabel)<option value="{{ $positionKey }}" data-group="{{ $groupKey }}" @selected(old('official_position') === $positionKey)>{{ $positionLabel }}</option>@endforeach @endforeach</select></div>
+    </div></div></div>
     <div class="card yg-card mb-4"><div class="card-body p-4"><h6 class="fw-bold text-uppercase text-secondary mb-3">Full name</h6><div class="row g-3">
       <div class="col-md-3"><label class="form-label">First name</label><input name="first_name" value="{{ old('first_name') }}" class="form-control" required></div>
       <div class="col-md-3"><label class="form-label">Middle name</label><input name="middle_name" value="{{ old('middle_name') }}" class="form-control"></div>
@@ -47,7 +52,7 @@
       <div class="col-md-6"><label class="form-label">Confirm password</label><input type="password" name="password_confirmation" class="form-control" required></div>
     </div><div class="form-text mt-2">Provide the resident with these login details after creating the account.</div></div></div>
 
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4"><a href="{{ route('users.index') }}" class="link-secondary small">Cancel</a><button type="submit" class="btn btn-primary fw-semibold px-4"><i class="bi bi-person-check me-1"></i>Create resident</button></div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4"><a href="{{ route('users.index') }}" class="link-secondary small">Cancel</a><button type="submit" class="btn btn-primary fw-semibold px-4"><i class="bi bi-person-check me-1"></i>Create user</button></div>
   </form>
 @endsection
 
@@ -55,6 +60,20 @@
 <script>
   const head = document.getElementById('is_head_of_family');
   const familyWrap = document.getElementById('family_link_wrap');
+  const role = document.getElementById('role');
+  const group = document.getElementById('official_group');
+  const position = document.getElementById('official_position');
+  const officialFields = document.querySelectorAll('.official-fields');
+  function syncOfficialFields() {
+    const visible = role.value === 'official';
+    officialFields.forEach((field) => field.classList.toggle('d-none', !visible));
+    group.required = visible;
+    position.required = visible;
+    Array.from(position.options).forEach((option) => { option.hidden = option.value !== '' && option.dataset.group !== group.value; });
+  }
+  role.addEventListener('change', syncOfficialFields);
+  group.addEventListener('change', syncOfficialFields);
+  syncOfficialFields();
   function syncFamilyFields() { familyWrap.hidden = head.checked; familyWrap.querySelectorAll('input, select').forEach((field) => field.disabled = head.checked); }
   head.addEventListener('change', syncFamilyFields);
   syncFamilyFields();

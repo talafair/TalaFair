@@ -17,6 +17,7 @@ class PointsCalculatorTest extends TestCase
     ): void {
         $event = new Announcement([
             'base_points' => 50,
+            'confirmation_points' => 20,
             'weight_points' => 10,
         ]);
 
@@ -27,9 +28,9 @@ class PointsCalculatorTest extends TestCase
     {
         return [
             'no participation or engagement' => [false, false, 50],
-            'participation only' => [true, false, 50],
+            'confirmed attendance only' => [true, false, 70],
             'engagement only' => [false, true, 55],
-            'participation and engagement' => [true, true, 55],
+            'confirmed early attendance' => [true, true, 75],
         ];
     }
 }

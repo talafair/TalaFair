@@ -27,7 +27,7 @@ class Announcement extends Model
     protected $fillable = [
         'title', 'category', 'body', 'is_featured',
         'is_event', 'allow_guest_scanning', 'raffle_enabled', 'event_start_at', 'event_end_at', 'rsvp_due_at',
-        'audiences', 'base_points', 'weight_points',
+        'audiences', 'base_points', 'confirmation_points', 'weight_points',
         'participation_points',
         'qr_token', 'qr_expires_at',
         'venue_name', 'venue_lat', 'venue_lng', 'geofence_radius',
@@ -46,6 +46,7 @@ class Announcement extends Model
             'rsvp_due_at'    => 'datetime',
             'qr_expires_at'  => 'datetime',
             'audiences'      => 'array',
+            'confirmation_points' => 'integer',
             'weight_points'  => 'float',
             'participation_points' => 'integer',
         ];

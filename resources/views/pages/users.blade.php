@@ -86,7 +86,7 @@
                             </td>
                             <td class="text-center">
                                 <span class="badge {{ $member->isOfficial() ? 'badge-gold' : 'badge-soft' }} rounded-pill">
-                                    <i class="bi {{ $member->isOfficial() ? 'bi-person-badge' : 'bi-house-heart' }} me-1"></i>{{ ucfirst($member->role) }}
+                                        <i class="bi {{ $member->isOfficial() ? 'bi-person-badge' : 'bi-house-heart' }} me-1"></i>{{ \App\Models\User::CATEGORIES[$member->role] ?? 'Unassigned' }}
                                 </span>
                                 @if ($member->isOfficial() && $member->official_position)
                                     <div class="small text-secondary mt-1">{{ config("talafair.official_positions.{$member->official_group}.label") }}: {{ config("talafair.official_positions.{$member->official_group}.positions.{$member->official_position}") }}</div>
@@ -143,7 +143,7 @@
                                             <div class="col-md-6"><span class="detail-label">Full name</span><div>{{ $member->full_name }}</div></div>
                                             <div class="col-md-6"><span class="detail-label">Username</span><div>{{ '@' . $member->username }}</div></div>
                                             <div class="col-md-6"><span class="detail-label">Email</span><div>{{ $member->email }}</div></div>
-                                            <div class="col-md-6"><span class="detail-label">Category</span><div class="text-capitalize">{{ $member->role }}</div></div>
+                                            <div class="col-md-6"><span class="detail-label">Category</span><div>{{ \App\Models\User::CATEGORIES[$member->role] ?? 'Unassigned' }}</div></div>
                                             <div class="col-md-6"><span class="detail-label">Verification</span><div>{{ $member->isOfficial() ? 'Official' : ($member->is_verified ? 'Verified' : 'Unverified') }}</div></div>
                                             <div class="col-md-6"><span class="detail-label">Points</span><div>{{ number_format($member->points) }}</div></div>
                                             <div class="col-md-6"><span class="detail-label">Joined</span><div>{{ $member->created_at?->format('M j, Y') ?: '—' }}</div></div>

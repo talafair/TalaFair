@@ -323,6 +323,7 @@ class AnnouncementController extends Controller
                 'audiences'       => ['required', 'array', 'min:1'],
                 'audiences.*'     => [Rule::in(array_keys(Announcement::AUDIENCES))],
                 'base_points'     => [Rule::requiredIf(fn () => ! in_array($request->input('category'), ['ice_breaker', 'q_and_a', 'game', 'intermission'], true)), 'integer', 'min:0', 'max:100000'],
+                'confirmation_points' => ['integer', 'min:0', 'max:100000'],
                 'weight_points'   => ['nullable', 'numeric', 'min:0', 'max:1000'],
                 'participation_points' => [Rule::requiredIf(fn () => in_array($request->input('category'), ['ice_breaker', 'q_and_a', 'game', 'intermission'], true)), 'integer', 'min:0', 'max:100000'],
                 'venue_name'      => ['nullable', 'string', 'max:255'],
@@ -341,6 +342,7 @@ class AnnouncementController extends Controller
 
         $isActivity = in_array($data['category'], ['ice_breaker', 'q_and_a', 'game', 'intermission'], true);
         $data['base_points'] = $isActivity ? 0 : (int) ($data['base_points'] ?? 0);
+        $data['confirmation_points'] = $data['is_event'] ? (int) ($data['confirmation_points'] ?? 0) : 0;
         $data['weight_points'] = 0;
         $data['participation_points'] = $isActivity ? (int) $data['participation_points'] : 0;
 

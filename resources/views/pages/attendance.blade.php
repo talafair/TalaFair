@@ -183,6 +183,7 @@
           '<ul class="small mb-0 ps-3">' +
             '<li>Event: ' + data.event + '</li>' +
             '<li>Base points: ' + data.breakdown.base + '</li>' +
+            '<li>Confirmation points: +' + data.breakdown.confirmation + '</li>' +
             '<li>Engagement bonus: +' + data.breakdown.early_bonus + '</li>' +
             '<li class="fw-semibold">Total: ' + data.breakdown.total + '</li>' +
           '</ul>');

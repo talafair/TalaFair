@@ -27,7 +27,7 @@ class RegisteredUserController extends Controller
             ->get(['id', 'first_name', 'middle_name', 'last_name', 'suffix', 'house_no', 'street', 'zone']);
 
         $role = $request->query('role', 'resident');
-        abort_unless(in_array($role, ['resident', 'guest', 'official'], true), 404);
+        abort_unless(array_key_exists($role, User::CATEGORIES), 404);
 
         return view('pages.register', compact('heads', 'role'));
     }
@@ -73,7 +73,7 @@ class RegisteredUserController extends Controller
             'username' => ['required', 'string', 'min:3', 'max:30', 'alpha_dash', 'unique:users,username'],
             'email'    => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => ['required', Rule::in(['resident', 'guest', 'official'])],
+            'role' => ['required', Rule::in(array_keys(User::CATEGORIES))],
             'official_group' => ['nullable', 'required_if:role,official', 'in:' . implode(',', array_keys(config('talafair.official_positions')))],
             'official_position' => ['nullable', 'required_if:role,official', 'in:' . implode(',', collect(config('talafair.official_positions'))->flatMap(fn ($group) => array_keys($group['positions']))->all())],
         ], [

@@ -49,7 +49,8 @@ class UserManagementController extends Controller
     {
         $data = $this->validateProfile($request, creating: true);
         $data['name'] = $this->fullName($data);
-        $data['role'] = 'resident';
+        $data['official_group'] = $data['role'] === 'official' ? $data['official_group'] : null;
+        $data['official_position'] = $data['role'] === 'official' ? $data['official_position'] : null;
         $data['is_verified'] = true;
         $data['password'] = Hash::make($data['password']);
         $data['gender_other'] = $data['gender'] === 'others' ? ($data['gender_other'] ?? null) : null;
@@ -76,7 +77,7 @@ class UserManagementController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        return redirect()->route('users.index')->with('success', "Created resident account for {$user->full_name}.");
+        return redirect()->route('users.index')->with('success', "Created user account for {$user->full_name}.");
     }
 
     public function update(Request $request, User $user)
@@ -192,7 +193,7 @@ class UserManagementController extends Controller
             ],
             'head_of_family_name' => ['nullable', 'string', 'max:255'],
             'is_head_of_family' => ['nullable', 'boolean'],
-            'role' => [$creating ? 'nullable' : 'required', 'in:resident,guest,official'],
+            'role' => ['required', Rule::in(array_keys(User::CATEGORIES))],
             'official_group' => ['nullable', 'required_if:role,official', 'in:' . implode(',', array_keys($positions))],
             'official_position' => ['nullable', 'required_if:role,official', 'in:' . implode(',', collect($positions)->flatMap(fn ($group) => array_keys($group['positions']))->all())],
             'points' => ['nullable', 'integer', 'min:0', 'max:1000000000'],
