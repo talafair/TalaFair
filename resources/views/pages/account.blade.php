@@ -244,18 +244,25 @@
               <input name="suffix" value="{{ old('suffix', $user->suffix) }}" class="form-control" data-title-case>
             </div>
 
-            <div class="col-md-4">
-              <label class="form-label">Gender</label>
-              <select name="gender" class="form-select"
-                      onchange="document.getElementById('gender_other_row').hidden = this.value !== 'others'">
-                @foreach (['female' => 'Female', 'male' => 'Male', 'others' => 'Others'] as $v => $l)
-                  <option value="{{ $v }}" @selected(old('gender', $user->gender) === $v)>{{ $l }}</option>
+            <div class="col-12 col-md-4">
+              <label class="form-label">Sex at Birth</label>
+              <select name="sex_at_birth" class="form-select">
+                @foreach (['female' => 'Female', 'male' => 'Male', 'prefer_not_to_say' => 'Prefer not to say'] as $v => $l)
+                  <option value="{{ $v }}" @selected(old('sex_at_birth', $user->sex_at_birth ?: $user->gender) === $v)>{{ $l }}</option>
                 @endforeach
               </select>
             </div>
-            <div class="col-md-4" id="gender_other_row" @if(old('gender', $user->gender) !== 'others') hidden @endif>
-              <label class="form-label">Please specify</label>
-              <input name="gender_other" value="{{ old('gender_other', $user->gender_other) }}" class="form-control" data-title-case>
+            <div class="col-md-4">
+              <label class="form-label">Preferred Gender Identity</label>
+              <select name="preferred_gender_identity" id="account_preferred_gender_identity" class="form-select" required>
+                @foreach (['woman' => 'Woman', 'man' => 'Man', 'non_binary' => 'Non-binary', 'transgender_woman' => 'Transgender Woman', 'transgender_man' => 'Transgender Man', 'genderqueer' => 'Genderqueer / Gender Non-conforming', 'self_describe' => 'Prefer to self-describe', 'prefer_not_to_say' => 'Prefer not to say'] as $v => $l)
+                  <option value="{{ $v }}" @selected(old('preferred_gender_identity', $user->preferred_gender_identity ?: ($user->gender === 'female' ? 'woman' : 'man')) === $v)>{{ $l }}</option>
+                @endforeach
+              </select>
+              <input name="gender_identity_other" value="{{ old('gender_identity_other', $user->gender_identity_other ?: $user->gender_other) }}" class="form-control mt-2" placeholder="Please specify your gender identity">
+            </div>
+            <div class="col-md-4">
+              <div class="form-check mt-md-4"><input class="form-check-input" type="checkbox" name="is_lgbtqia" value="1" id="account_is_lgbtqia" @checked(old('is_lgbtqia', $user->is_lgbtqia))><label class="form-check-label" for="account_is_lgbtqia">I identify as part of the LGBTQIA+ community</label></div>
             </div>
 
             <div class="col-md-2">
@@ -276,17 +283,7 @@
               <label class="form-label">Occupation</label>
               <input name="occupation" value="{{ old('occupation', $user->occupation) }}" class="form-control" data-title-case>
             </div>
-            <div class="col-md-4">
-              <input type="hidden" name="is_student" value="0">
-              <div class="form-check mt-md-4">
-                <input class="form-check-input" type="checkbox" name="is_student" value="1" id="account_is_student" @checked(old('is_student', $user->is_student))>
-                <label class="form-check-label" for="account_is_student">I am a student</label>
-              </div>
-              <div id="account_school_wrap" class="mt-2" @if(!old('is_student', $user->is_student)) hidden @endif>
-                <label class="form-label" for="account_school">Name of school</label>
-                <input id="account_school" name="school" value="{{ old('school', $user->school) }}" class="form-control" data-title-case>
-              </div>
-            </div>
+            @include('pages.partials.student-fields', ['formPrefix' => 'account_', 'user' => $user])
             <div class="col-md-4">
               <label class="form-label">Email</label>
               <input type="email" name="email" value="{{ old('email', $user->email) }}" required class="form-control">
@@ -354,6 +351,33 @@
             </div>
           </div>
         </div>
+
+        <div class="card yg-card mt-3">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h6 class="fw-bold mb-0"><i class="bi bi-building me-1 text-yg"></i>Barangay San Jose, Iriga City</h6>
+              <span class="small text-secondary">Need help?</span>
+            </div>
+            <p class="small text-secondary mb-3">Contact the Barangay San Jose Council for help with profile information or community concerns.</p>
+            <div class="row g-2">
+              <div class="col-12 col-md-4">
+                <a href="tel:09919702491" class="btn btn-light border w-100 text-start">
+                  <i class="bi bi-telephone me-2 text-yg"></i>0991 970 2491
+                </a>
+              </div>
+              <div class="col-12 col-md-4">
+                <a href="mailto:sanjosebrgycouncil@gmail.com" class="btn btn-light border w-100 text-start text-truncate">
+                  <i class="bi bi-envelope me-2 text-yg"></i>sanjosebrgycouncil@gmail.com
+                </a>
+              </div>
+              <div class="col-12 col-md-4">
+                <a href="https://www.facebook.com/SanJoseIrigaCityCamSur" target="_blank" rel="noopener noreferrer" class="btn btn-light border w-100 text-start">
+                  <i class="bi bi-facebook me-2 text-yg"></i>Facebook page
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -374,19 +398,6 @@
     filterAccountPositions();
   }
 
-  const accountStudent = document.getElementById('account_is_student');
-  const accountSchoolWrap = document.getElementById('account_school_wrap');
-  const accountSchool = document.getElementById('account_school');
-  function toggleAccountSchool() {
-    if (!accountStudent || !accountSchoolWrap || !accountSchool) return;
-    accountSchoolWrap.hidden = !accountStudent.checked;
-    accountSchool.required = accountStudent.checked;
-    accountSchool.disabled = !accountStudent.checked;
-  }
-  if (accountStudent) {
-    accountStudent.addEventListener('change', toggleAccountSchool);
-    toggleAccountSchool();
-  }
 </script>
 @endpush
 

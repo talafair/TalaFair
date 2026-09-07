@@ -17,7 +17,14 @@ class Announcement extends Model
     public const SCAN_WINDOW_HOURS = 2;
 
     public const AUDIENCES = [
-        'public'       => 'Public (all residents)',
+        'public'       => 'All residents',
+        'students'     => 'Students',
+        'women'        => 'Women',
+        'pwd'          => 'PWD',
+        'four_ps'      => '4Ps members',
+        'solo_parents' => 'Solo parents',
+        'out_of_school_youth' => 'Out-of-school Youth',
+        'lgbtqia'      => 'LGBTQIA+',
         'youth'        => 'Youth (15-30 years old)',
         'senior'       => 'Senior citizens (60+)',
         'family_heads' => 'Family heads',
@@ -143,21 +150,7 @@ class Announcement extends Model
     {
         $keys = $this->audiences ?: ['public'];
 
-        if (in_array('public', $keys, true)) {
-            return User::query();
-        }
-
-        return User::where(function (Builder $q) use ($keys) {
-            foreach ($keys as $key) {
-                match ($key) {
-                    'youth'        => $q->orWhere(fn ($s) => $s->youth()),
-                    'senior'       => $q->orWhere(fn ($s) => $s->seniors()),
-                    'family_heads' => $q->orWhere(fn ($s) => $s->familyHeads()),
-                    'officials'    => $q->orWhere('role', 'official'),
-                    default        => null,
-                };
-            }
-        });
+        return (new User)->audienceQueryFor($keys);
     }
 
     public function audienceLabels(): array

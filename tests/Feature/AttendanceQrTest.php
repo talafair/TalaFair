@@ -214,7 +214,7 @@ class AttendanceQrTest extends TestCase
         ])->assertUnprocessable()->assertJsonPath('ok', false);
     }
 
-    public function test_confirmed_yes_does_not_change_attendance_points(): void
+    public function test_confirmed_yes_adds_points_after_successful_check_in(): void
     {
         [, $resident, $event] = $this->attendanceSetup();
         $event->update([
@@ -233,9 +233,9 @@ class AttendanceQrTest extends TestCase
             'announcement_id' => $event->id,
             'latitude' => config('talafair.barangay_lat'),
             'longitude' => config('talafair.barangay_lng'),
-        ])->assertOk()->assertJsonPath('breakdown.total', 100);
+        ])->assertOk()->assertJsonPath('breakdown.total', 125);
 
-        $this->assertSame(100, $resident->fresh()->points);
+        $this->assertSame(125, $resident->fresh()->points);
     }
 
     public function test_resident_can_attend_without_confirmation_without_confirmation_points(): void

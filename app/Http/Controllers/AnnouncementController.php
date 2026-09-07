@@ -27,6 +27,7 @@ class AnnouncementController extends Controller
         $announcements = Announcement::latest()
             ->when($featured, fn ($q) => $q->whereKeyNot($featured->getKey()))
             ->paginate(15);
+        $calendarAnnouncements = Announcement::latest()->get();
 
         $facilitators = User::query()
             ->where('role', 'official')
@@ -37,7 +38,7 @@ class AnnouncementController extends Controller
             ->orderBy('first_name')
             ->get();
 
-        return view('pages.announcements', compact('announcements', 'featured', 'facilitators'));
+        return view('pages.announcements', compact('announcements', 'featured', 'facilitators', 'calendarAnnouncements'));
     }
 
     public function create()
@@ -319,6 +320,15 @@ class AnnouncementController extends Controller
             'allow_guest_scanning' => ['nullable', 'boolean'],
             'raffle_enabled' => ['nullable', 'boolean'],
             'banner'      => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+            'facilitator_ids' => ['nullable', 'array'],
+            'facilitator_ids.*' => [
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->where('role', 'official')
+                    ->where(fn ($authorized) => $authorized
+                        ->where('official_group', '!=', 'personnel')
+                        ->orWhere('is_verified', true))),
+            ],
         ];
 
         if ($request->boolean('is_event')) {
@@ -336,15 +346,6 @@ class AnnouncementController extends Controller
                 'venue_lat'       => ['required', 'numeric', 'between:-90,90'],
                 'venue_lng'       => ['required', 'numeric', 'between:-180,180'],
                 'geofence_radius' => ['required', 'integer', 'min:20', 'max:5000'],
-                'facilitator_ids' => ['nullable', 'array'],
-                'facilitator_ids.*' => [
-                    'integer',
-                    Rule::exists('users', 'id')->where(fn ($query) => $query
-                        ->where('role', 'official')
-                        ->where(fn ($authorized) => $authorized
-                            ->where('official_group', '!=', 'personnel')
-                            ->orWhere('is_verified', true))),
-                ],
             ];
         }
 
@@ -381,12 +382,6 @@ class AnnouncementController extends Controller
 
     private function syncFacilitators(Announcement $announcement, array $facilitatorIds): void
     {
-        if (! $announcement->is_event) {
-            $announcement->facilitators()->delete();
-
-            return;
-        }
-
         $ids = collect($facilitatorIds)->map(fn ($id) => (int) $id)->unique()->values();
         $existingIds = $announcement->facilitators()->pluck('user_id');
         $announcement->facilitators()->whereNotIn('user_id', $ids)->delete();

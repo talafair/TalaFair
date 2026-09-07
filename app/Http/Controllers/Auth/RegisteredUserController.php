@@ -34,6 +34,7 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->normalizeLegacyGenderInput($request);
         $isGuest = $request->input('role') === 'guest';
         $requiresHouseholdHead = $request->input('role') === 'resident'
             && ! $request->boolean('is_head_of_family');
@@ -44,13 +45,21 @@ class RegisteredUserController extends Controller
             'last_name'    => ['required', 'string', 'max:255'],
             'suffix'       => ['nullable', 'string', 'max:20'],
 
-            'gender'       => ['required', Rule::in(['female', 'male', 'others'])],
-            'gender_other' => ['nullable', 'required_if:gender,others', 'string', 'max:255'],
+            'sex_at_birth' => ['required', Rule::in(['female', 'male', 'prefer_not_to_say'])],
+            'preferred_gender_identity' => ['required', Rule::in(['woman', 'man', 'non_binary', 'transgender_woman', 'transgender_man', 'genderqueer', 'self_describe', 'prefer_not_to_say'])],
+            'gender_identity_other' => ['nullable', 'required_if:preferred_gender_identity,self_describe', 'string', 'max:255'],
+            'is_lgbtqia' => ['nullable', 'boolean'],
+            'is_pwd' => ['nullable', 'boolean'],
+            'is_4ps_member' => ['nullable', 'boolean'],
+            'is_solo_parent' => ['nullable', 'boolean'],
+            'is_out_of_school_youth' => ['nullable', 'boolean', Rule::prohibitedIf(fn () => $request->boolean('is_student'))],
 
             'birthdate'      => [$isGuest ? 'nullable' : 'required', 'date', 'before_or_equal:today', 'after:1900-01-01'],
             'contact_number' => ['nullable', 'string', 'max:20', 'regex:/^[0-9+\-\s()]+$/'],
-            'is_student'     => ['nullable', 'boolean'],
+            'is_student'     => ['nullable', 'boolean', Rule::prohibitedIf(fn () => $request->boolean('is_out_of_school_youth'))],
+            'student_level'  => ['nullable', Rule::requiredIf(fn () => $request->boolean('is_student')), Rule::in(array_keys(User::STUDENT_LEVELS))],
             'school'         => ['nullable', 'required_if:is_student,1', 'string', 'max:255'],
+            'school_other'   => ['nullable', Rule::requiredIf(fn () => strcasecmp((string) $request->input('school'), 'other') === 0), 'string', 'max:255'],
             'occupation'     => ['nullable', 'string', 'max:255'],
 
             'house_no'     => ['required', 'string', 'max:255'],
@@ -80,7 +89,7 @@ class RegisteredUserController extends Controller
             'head_of_family_name.required_if' => 'Please name the head of your family.',
             'head_of_family_id.required'      => 'Select a registered Household Head before registering this household member.',
             'head_of_family_id.exists'        => 'Select a valid registered Household Head.',
-            'gender_other.required_if'        => 'Please specify your gender.',
+            'gender_identity_other.required_if' => 'Please specify your gender identity.',
             'contact_number.regex'            => 'Use digits only, with optional +, -, spaces or brackets.',
         ]);
 
@@ -135,12 +144,21 @@ class RegisteredUserController extends Controller
                     $data['first_name'], $data['middle_name'] ?? null, $data['last_name'], $data['suffix'] ?? null,
                 ])->filter()->implode(' ')),
 
-                'gender'         => $data['gender'],
-                'gender_other'   => $data['gender'] === 'others' ? $data['gender_other'] : null,
+                'gender'         => in_array($data['sex_at_birth'], ['female', 'male'], true) ? $data['sex_at_birth'] : null,
+                'sex_at_birth'   => $data['sex_at_birth'],
+                'preferred_gender_identity' => $data['preferred_gender_identity'],
+                'gender_identity_other' => $data['preferred_gender_identity'] === 'self_describe' ? $data['gender_identity_other'] : null,
+                'is_lgbtqia'     => (bool) ($data['is_lgbtqia'] ?? false),
                 'birthdate'      => $data['birthdate'] ?? null,
                 'contact_number' => $data['contact_number'] ?? null,
                 'is_student'     => (bool) ($data['is_student'] ?? false),
-                'school'         => ($data['is_student'] ?? false) ? ($data['school'] ?? null) : null,
+                'student_level'  => $data['is_student'] ? ($data['student_level'] ?? null) : null,
+                'is_pwd'         => (bool) ($data['is_pwd'] ?? false),
+                'is_4ps_member'  => (bool) ($data['is_4ps_member'] ?? false),
+                'is_solo_parent' => (bool) ($data['is_solo_parent'] ?? false),
+                'is_out_of_school_youth' => (bool) ($data['is_out_of_school_youth'] ?? false),
+                'school'         => $data['is_student'] ? (strcasecmp((string) ($data['school'] ?? ''), 'other') === 0 ? 'Other' : $data['school']) : null,
+                'school_other'   => $data['is_student'] && strcasecmp((string) ($data['school'] ?? ''), 'other') === 0 ? ($data['school_other'] ?? null) : null,
                 'occupation'     => $data['occupation'] ?? null,
 
                 'house_no'    => $data['house_no'],
@@ -212,5 +230,27 @@ class RegisteredUserController extends Controller
             ->with('success', $user->isOfficial()
                 ? 'Welcome to TalaFair. Your official account is ready.'
                 : ($user->isGuest() ? 'Welcome to TalaFair. Guest QR scanning depends on each event official.' : 'Welcome to TalaFair. Here is your resident ID.'));
+    }
+
+    private function normalizeLegacyGenderInput(Request $request): void
+    {
+        if ($request->has('sex_at_birth')) {
+            return;
+        }
+
+        $legacyGender = $request->input('gender');
+        if ($legacyGender === null) {
+            return;
+        }
+
+        $request->merge([
+            'sex_at_birth' => in_array($legacyGender, ['female', 'male'], true) ? $legacyGender : 'prefer_not_to_say',
+            'preferred_gender_identity' => match ($legacyGender) {
+                'female' => 'woman',
+                'male' => 'man',
+                default => 'self_describe',
+            },
+            'gender_identity_other' => $legacyGender === 'others' ? $request->input('gender_other') : null,
+        ]);
     }
 }

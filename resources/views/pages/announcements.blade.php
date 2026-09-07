@@ -18,7 +18,18 @@
         ];
     @endphp
 
-    @php $isOfficial = auth()->user()->isOfficial(); @endphp
+    @php
+        $isOfficial = auth()->user()->isOfficial();
+        $calendarData = $calendarAnnouncements->map(fn ($announcement) => [
+            'id' => $announcement->id,
+            'title' => $announcement->title,
+            'category' => $announcement->category,
+            'status' => $announcement->eventStatus() ?? 'none',
+            'date' => ($announcement->event_start_at ?: $announcement->created_at)->toDateString(),
+            'time' => $announcement->event_start_at?->format('g:i A'),
+            'url' => route('announcements.show', $announcement),
+        ])->values();
+    @endphp
 
     @if ($isOfficial)
         <div class="d-flex justify-content-end mb-4">
@@ -75,6 +86,7 @@
         </div>
     @endif
 
+    
     {{-- Search + filters --}}
     <div class="card yg-card p-3 mb-4">
         <div class="row g-3 align-items-center">
@@ -85,7 +97,15 @@
                            placeholder="Search announcements..." aria-label="Search announcements">
                 </div>
             </div>
-            <div class="col-lg-7 d-flex justify-content-lg-end">
+            <div class="col-lg-7 d-flex justify-content-lg-end gap-2 flex-wrap">
+                <div class="btn-group announcement-view-switch" role="group" aria-label="Announcement view">
+                    <button type="button" class="btn btn-outline-secondary active" id="cardsViewButton">
+                        <i class="bi bi-grid-3x3-gap me-1"></i>Cards
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="calendarViewButton">
+                        <i class="bi bi-calendar3 me-1"></i>Calendar
+                    </button>
+                </div>
                 <div class="dropdown">
                     <button class="btn filter-dropdown-toggle dropdown-toggle" type="button" data-bs-toggle="dropdown"
                             data-bs-auto-close="outside" aria-expanded="false" aria-label="Filter announcements">
@@ -115,6 +135,27 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="announcementCalendar" class="card yg-card p-3 p-lg-4 mb-4 d-none" aria-label="Announcements calendar">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <button type="button" class="btn btn-light btn-sm" id="calendarPrevious" aria-label="Previous period"><i class="bi bi-chevron-left"></i></button>
+            <h4 class="fw-bold mb-0" id="calendarMonthLabel"></h4>
+            <button type="button" class="btn btn-light btn-sm" id="calendarNext" aria-label="Next period"><i class="bi bi-chevron-right"></i></button>
+        </div>
+        <div class="d-flex justify-content-center mb-3">
+            <div class="btn-group announcement-view-switch" role="group" aria-label="Calendar range">
+                <button type="button" class="btn btn-outline-secondary btn-sm active" id="calendarMonthButton">Month</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="calendarYearButton">Year</button>
+            </div>
+        </div>
+        <div id="calendarMonthView">
+          <div class="calendar-weekdays small fw-semibold text-secondary text-center">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </div>
+        <div id="calendarYearView" class="calendar-year-grid d-none"></div>
     </div>
 
     {{-- Announcement cards --}}
@@ -311,6 +352,47 @@
     .filter-dropdown-toggle { background: #fff; border: 2px solid var(--yg-primary); color: var(--yg-secondary); font-weight: 600; border-radius: 50rem; padding: .45rem 1.15rem; }
     .filter-dropdown-toggle:hover, .filter-dropdown-toggle:focus { background: var(--yg-primary); color: var(--yg-ink); }
     .announcement-filter-menu { min-width: 15rem; border: 0; border-radius: 1rem; box-shadow: 0 10px 30px rgba(52, 58, 64, .14); }
+    .announcement-view-switch .btn.active { background: var(--yg-primary); border-color: var(--yg-primary); color: var(--yg-ink); }
+    #announcementCalendar { min-width: 0; overflow: hidden; }
+    .calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .45rem; min-width: 0; }
+    .calendar-weekdays { margin-bottom: .45rem; }
+    .calendar-day { min-width: 0; min-height: 7rem; background: rgba(245, 248, 229, .6); border: 1px solid rgba(112, 144, 30, .14); border-radius: .6rem; padding: .5rem; overflow: hidden; }
+    .calendar-day.is-other-month { opacity: .45; }
+    .calendar-day-number { font-size: .8rem; font-weight: 700; color: var(--yg-secondary); }
+    .calendar-entry { display: block; min-width: 0; margin-top: .35rem; padding: .3rem .4rem; border-radius: .35rem; background: #fff; color: inherit; font-size: .75rem; line-height: 1.2; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .calendar-entry:hover { background: var(--yg-primary); color: var(--yg-ink); }
+    .calendar-year-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+    .calendar-month-card { min-width: 0; min-height: 8rem; background: rgba(245, 248, 229, .6); border: 1px solid rgba(112, 144, 30, .14); border-radius: .6rem; padding: .75rem; overflow: hidden; }
+    .calendar-month-card h6 { color: var(--yg-secondary); }
+    @media (max-width: 991.98px) {
+        #announcementCalendar { padding: .85rem !important; }
+        .calendar-weekdays, .calendar-grid { gap: .3rem; }
+        .calendar-day { min-height: 5.75rem; padding: .35rem; border-radius: .45rem; }
+        .calendar-day-number { font-size: .72rem; }
+        .calendar-entry { margin-top: .2rem; padding: .25rem .3rem; font-size: .68rem; }
+        .calendar-year-grid { gap: .55rem; }
+        .calendar-month-card { min-height: 6.5rem; padding: .55rem; }
+    }
+    @media (max-width: 767.98px) {
+        .calendar-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .calendar-weekdays { font-size: .68rem; }
+        .calendar-month-card h6 { font-size: .8rem; margin-bottom: .35rem !important; }
+    }
+    @media (max-width: 575.98px) {
+        #announcementCalendar { padding: .55rem !important; }
+        .calendar-weekdays, .calendar-grid { gap: .18rem; }
+        .calendar-weekdays { font-size: .58rem; margin-bottom: .18rem; }
+        .calendar-day { min-height: 3.9rem; padding: .2rem; border-radius: .3rem; }
+        .calendar-day-number { font-size: .62rem; }
+        .calendar-entry { margin-top: .12rem; padding: .16rem .2rem; border-radius: .22rem; font-size: .55rem; }
+        .calendar-entry .d-block { font-size: .48rem; }
+        .calendar-year-grid { grid-template-columns: 1fr; gap: .35rem; }
+        .calendar-month-card { min-height: 4.25rem; padding: .4rem; border-radius: .35rem; }
+        .calendar-month-card h6 { font-size: .72rem; }
+        #calendarMonthLabel { font-size: 1rem; }
+        #calendarPrevious, #calendarNext { padding: .2rem .4rem; font-size: .7rem; }
+        #calendarMonthButton, #calendarYearButton { padding: .2rem .55rem; font-size: .7rem; }
+    }
 </style>
 @endpush
 
@@ -323,8 +405,22 @@
         const filterLabel = document.getElementById('announcementFilterLabel');
         const items = document.querySelectorAll('.announcement-item');
         const noResults = document.getElementById('noResults');
+        const announcementGrid = document.getElementById('announcementGrid');
+        const announcementCalendar = document.getElementById('announcementCalendar');
+        const cardsViewButton = document.getElementById('cardsViewButton');
+        const calendarViewButton = document.getElementById('calendarViewButton');
+        const calendarGrid = document.getElementById('calendarGrid');
+        const calendarMonthView = document.getElementById('calendarMonthView');
+        const calendarYearView = document.getElementById('calendarYearView');
+        const calendarMonthButton = document.getElementById('calendarMonthButton');
+        const calendarYearButton = document.getElementById('calendarYearButton');
+        const calendarMonthLabel = document.getElementById('calendarMonthLabel');
+        const calendarData = @json($calendarData);
         let activeFilter = 'all';
         let activeStatus = 'all';
+        let activeView = 'cards';
+        let calendarMode = 'month';
+        let calendarDate = new Date();
 
         function applyFilters() {
             const term = search.value.trim().toLowerCase();
@@ -338,6 +434,89 @@
                 if (show) visible++;
             });
             if (items.length > 0) noResults.classList.toggle('d-none', visible > 0);
+        }
+
+        function calendarMatches(item) {
+            const term = search.value.trim().toLowerCase();
+            return (activeFilter === 'all' || item.category === activeFilter)
+                && (activeStatus === 'all' || item.status === activeStatus)
+                && (!term || item.title.toLowerCase().includes(term) || item.category.toLowerCase().includes(term));
+        }
+
+        function renderCalendar() {
+            const year = calendarDate.getFullYear();
+            const month = calendarDate.getMonth();
+            if (calendarMode === 'year') {
+                renderYear(year);
+                return;
+            }
+            calendarMonthLabel.textContent = calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const previousMonthDays = new Date(year, month, 0).getDate();
+            calendarGrid.innerHTML = '';
+            for (let index = 0; index < 42; index++) {
+                const dayOffset = index - firstDay + 1;
+                const cellDate = new Date(year, month, dayOffset);
+                const isOtherMonth = dayOffset < 1 || dayOffset > daysInMonth;
+                const cell = document.createElement('div');
+                cell.className = `calendar-day${isOtherMonth ? ' is-other-month' : ''}`;
+                const dayNumber = document.createElement('div');
+                dayNumber.className = 'calendar-day-number';
+                dayNumber.textContent = isOtherMonth && dayOffset < 1 ? previousMonthDays + dayOffset : (isOtherMonth ? dayOffset - daysInMonth : dayOffset);
+                cell.appendChild(dayNumber);
+                calendarData.filter(item => item.date === cellDate.toISOString().slice(0, 10) && calendarMatches(item)).forEach(item => {
+                    const link = document.createElement('a');
+                    link.className = 'calendar-entry';
+                    link.href = item.url;
+                    link.innerHTML = `<strong>${item.title}</strong>${item.time ? `<span class="d-block text-secondary">${item.time}</span>` : ''}`;
+                    cell.appendChild(link);
+                });
+                calendarGrid.appendChild(cell);
+            }
+        }
+
+        function renderYear(year) {
+            calendarMonthLabel.textContent = String(year);
+            calendarYearView.innerHTML = '';
+            for (let month = 0; month < 12; month++) {
+                const card = document.createElement('div');
+                card.className = 'calendar-month-card';
+                const heading = document.createElement('h6');
+                heading.className = 'fw-bold mb-2';
+                heading.textContent = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long' });
+                card.appendChild(heading);
+                calendarData.filter(item => {
+                    const date = new Date(`${item.date}T00:00:00`);
+                    return date.getFullYear() === year && date.getMonth() === month && calendarMatches(item);
+                }).forEach(item => {
+                    const link = document.createElement('a');
+                    link.className = 'calendar-entry';
+                    link.href = item.url;
+                    link.textContent = `${Number(item.date.slice(8, 10))} - ${item.title}`;
+                    card.appendChild(link);
+                });
+                calendarYearView.appendChild(card);
+            }
+        }
+
+        function setCalendarMode(mode) {
+            calendarMode = mode;
+            calendarMonthView.classList.toggle('d-none', mode !== 'month');
+            calendarYearView.classList.toggle('d-none', mode !== 'year');
+            calendarMonthButton.classList.toggle('active', mode === 'month');
+            calendarYearButton.classList.toggle('active', mode === 'year');
+            renderCalendar();
+        }
+
+        function setView(view) {
+            activeView = view;
+            announcementGrid.closest('.announcement-page > .mb-3').classList.toggle('d-none', view !== 'cards');
+            noResults.classList.toggle('d-none', view !== 'cards');
+            announcementCalendar.classList.toggle('d-none', view !== 'calendar');
+            cardsViewButton.classList.toggle('active', view === 'cards');
+            calendarViewButton.classList.toggle('active', view === 'calendar');
+            if (view === 'calendar') renderCalendar();
         }
 
         function updateFilterLabel() {
@@ -354,15 +533,35 @@
             activeFilter = categoryFilter.value;
             updateFilterLabel();
             applyFilters();
+            if (activeView === 'calendar') renderCalendar();
         });
 
         statusFilter.addEventListener('change', () => {
             activeStatus = statusFilter.value;
             updateFilterLabel();
             applyFilters();
+            if (activeView === 'calendar') renderCalendar();
         });
 
-            search.addEventListener('input', applyFilters);
+            search.addEventListener('input', () => {
+                applyFilters();
+                if (activeView === 'calendar') renderCalendar();
+            });
+            cardsViewButton.addEventListener('click', () => setView('cards'));
+            calendarViewButton.addEventListener('click', () => setView('calendar'));
+            document.getElementById('calendarPrevious').addEventListener('click', () => {
+                if (calendarMode === 'year') calendarDate.setFullYear(calendarDate.getFullYear() - 1);
+                else calendarDate.setMonth(calendarDate.getMonth() - 1);
+                renderCalendar();
+            });
+            document.getElementById('calendarNext').addEventListener('click', () => {
+                if (calendarMode === 'year') calendarDate.setFullYear(calendarDate.getFullYear() + 1);
+                else calendarDate.setMonth(calendarDate.getMonth() + 1);
+                renderCalendar();
+            });
+            calendarMonthButton.addEventListener('click', () => setCalendarMode('month'));
+            calendarYearButton.addEventListener('click', () => setCalendarMode('year'));
+            setView(activeView);
         })();
 
         </script>

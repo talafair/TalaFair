@@ -4,7 +4,46 @@
     $audiences = \App\Models\Announcement::AUDIENCES;
 @endphp
 
-<div class="border-top pt-4 mt-4">
+  @php
+    $assignedFacilitatorIds = old('facilitator_ids', $a?->facilitatorUsers?->pluck('id')->all() ?? []);
+  @endphp
+  <div class="mt-4 mb-4">
+      <label class="form-label fw-semibold">Event Facilitators / Assigned Personnel <span class="text-secondary fw-normal">(optional)</span></label>
+      <div class="form-text mb-2">You may leave this empty. Assign verified officials or authorized personnel to this announcement.</div>
+      <div class="row g-2 align-items-center" data-facilitator-picker="{{ $sfx }}">
+        <div class="col-md-5">
+          <label class="form-label small text-secondary mb-1" for="facilitator-available{{ $sfx }}">Available users</label>
+          <select id="facilitator-available{{ $sfx }}" class="form-select" multiple size="5">
+            @foreach (($facilitators ?? collect()) as $facilitator)
+              @unless (in_array($facilitator->id, $assignedFacilitatorIds))
+                <option value="{{ $facilitator->id }}">
+                  {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
+                </option>
+              @endunless
+            @endforeach
+          </select>
+          <button type="button" class="btn btn-primary btn-sm mt-2 js-add-facilitator" title="Add selected facilitators"><i class="bi bi-plus-lg me-1"></i>Add to Facilitate</button>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label small text-secondary mb-1" for="facilitator-assigned{{ $sfx }}">Assigned facilitators</label>
+          <select id="facilitator-assigned{{ $sfx }}" name="facilitator_ids[]" class="form-select" multiple size="5">
+            @foreach (($facilitators ?? collect()) as $facilitator)
+              @if (in_array($facilitator->id, $assignedFacilitatorIds))
+                <option value="{{ $facilitator->id }}" selected>
+                  {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
+                </option>
+              @endif
+            @endforeach
+          </select>
+          <button type="button" class="btn btn-danger btn-sm mt-2 js-remove-facilitator" title="Remove selected facilitators"><i class="bi bi-dash-lg me-1"></i>Remove as Facilitator</button>
+        </div>
+      </div>
+      @if (($facilitators ?? collect())->isEmpty())
+        <div class="small text-secondary mt-2">No verified officials or personnel are available to assign yet.</div>
+      @endif
+  </div>
+
+  <div class="border-top pt-4 mt-4">
   <div class="form-check">
     <input class="form-check-input" type="checkbox" name="is_event" value="1"
            id="is_event{{ $sfx }}"
@@ -14,7 +53,7 @@
       <i class="bi bi-calendar-event me-1 text-yg"></i>This is an event or meeting with attendance
     </label>
   </div>
-
+  
   <div id="event_fields{{ $sfx }}" class="mt-4" @if(! old('is_event', $a?->is_event)) hidden @endif>
     <div id="activity_notice{{ $sfx }}" class="alert alert-info d-none">
       <i class="bi bi-info-circle me-1"></i>
@@ -76,44 +115,6 @@
       @endforeach
     </div>
 
-    @php
-      $assignedFacilitatorIds = old('facilitator_ids', $a?->facilitatorUsers?->pluck('id')->all() ?? []);
-    @endphp
-    <hr class="my-4">
-    <label class="form-label fw-semibold">Event Facilitators / Assigned Personnel <span class="text-secondary fw-normal">(optional)</span></label>
-    <div class="form-text mb-2">Assign verified officials or authorized personnel who may record their attendance through this event QR code.</div>
-    <div class="row g-2 align-items-center" data-facilitator-picker="{{ $sfx }}">
-      <div class="col-md-5">
-        <label class="form-label small text-secondary mb-1" for="facilitator-available{{ $sfx }}">Available users</label>
-        <select id="facilitator-available{{ $sfx }}" class="form-select" multiple size="5">
-          @foreach (($facilitators ?? collect()) as $facilitator)
-            @unless (in_array($facilitator->id, $assignedFacilitatorIds))
-              <option value="{{ $facilitator->id }}">
-                {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
-              </option>
-            @endunless
-          @endforeach
-        </select>
-        <button type="button" class="btn btn-primary btn-sm mt-2 js-add-facilitator" title="Add selected facilitators"><i class="bi bi-plus-lg me-1"></i>Add to Facilitate</button>
-      </div>
-      <div class="col-md-5">
-        <label class="form-label small text-secondary mb-1" for="facilitator-assigned{{ $sfx }}">Assigned facilitators</label>
-        <select id="facilitator-assigned{{ $sfx }}" name="facilitator_ids[]" class="form-select" multiple size="5">
-          @foreach (($facilitators ?? collect()) as $facilitator)
-            @if (in_array($facilitator->id, $assignedFacilitatorIds))
-              <option value="{{ $facilitator->id }}" selected>
-                {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
-              </option>
-            @endif
-          @endforeach
-        </select>
-        <button type="button" class="btn btn-danger btn-sm mt-2 js-remove-facilitator" title="Remove selected facilitators"><i class="bi bi-dash-lg me-1"></i>Remove as Facilitator</button>
-      </div>
-    </div>
-    @if (($facilitators ?? collect())->isEmpty())
-      <div class="small text-secondary mt-2">No verified officials or personnel are available to assign yet.</div>
-    @endif
-
     <hr class="my-4">
 
     <div class="row g-3">
@@ -122,6 +123,12 @@
         <input type="number" name="base_points" id="base_points{{ $sfx }}" min="0" class="form-control"
                value="{{ old('base_points', $a?->base_points ?? 50) }}">
         <div class="form-text">Points awarded for successfully attending the event. Early scanners receive an additional 10%.</div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="confirmation_points{{ $sfx }}">Additional points for confirming attendance</label>
+        <input type="number" name="confirmation_points" id="confirmation_points{{ $sfx }}" min="0" max="100000" class="form-control"
+               value="{{ old('confirmation_points', $a?->confirmation_points ?? 0) }}">
+        <div class="form-text">Awarded once, only after the resident confirms attendance and successfully checks in.</div>
       </div>
       <div class="col-md-6 d-none" id="participation_points_wrap{{ $sfx }}">
         <label class="form-label" for="participation_points{{ $sfx }}">Participation weight</label>

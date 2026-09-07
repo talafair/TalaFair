@@ -28,17 +28,38 @@ class ProfileController extends Controller
         $user = $request->user();
         abort_unless($user->isOfficial(), 403, 'Only officials can edit account information.');
 
+        if (! $request->has('sex_at_birth') && $request->has('gender')) {
+            $legacyGender = $request->input('gender');
+            $request->merge([
+                'sex_at_birth' => in_array($legacyGender, ['female', 'male'], true) ? $legacyGender : 'prefer_not_to_say',
+                'preferred_gender_identity' => match ($legacyGender) {
+                    'female' => 'woman',
+                    'male' => 'man',
+                    default => 'self_describe',
+                },
+                'gender_identity_other' => $legacyGender === 'others' ? $request->input('gender_other') : null,
+            ]);
+        }
+
         $data = $request->validate([
             'first_name'     => ['required', 'string', 'max:255'],
             'middle_name'    => ['nullable', 'string', 'max:255'],
             'last_name'      => ['required', 'string', 'max:255'],
             'suffix'         => ['nullable', 'string', 'max:20'],
-            'gender'         => ['required', Rule::in(['female', 'male', 'others'])],
-            'gender_other'   => ['nullable', 'required_if:gender,others', 'string', 'max:255'],
+            'sex_at_birth' => ['required', Rule::in(['female', 'male', 'prefer_not_to_say'])],
+            'preferred_gender_identity' => ['required', Rule::in(['woman', 'man', 'non_binary', 'transgender_woman', 'transgender_man', 'genderqueer', 'self_describe', 'prefer_not_to_say'])],
+            'gender_identity_other' => ['nullable', 'required_if:preferred_gender_identity,self_describe', 'string', 'max:255'],
+            'is_lgbtqia' => ['nullable', 'boolean'],
+            'is_pwd' => ['nullable', 'boolean'],
+            'is_4ps_member' => ['nullable', 'boolean'],
+            'is_solo_parent' => ['nullable', 'boolean'],
+            'is_out_of_school_youth' => ['nullable', 'boolean', Rule::prohibitedIf(fn () => $request->boolean('is_student'))],
             'birthdate'      => ['required', 'date', 'before_or_equal:today'],
             'contact_number' => ['nullable', 'string', 'max:20'],
-            'is_student'     => ['nullable', 'boolean'],
+            'is_student'     => ['nullable', 'boolean', Rule::prohibitedIf(fn () => $request->boolean('is_out_of_school_youth'))],
+            'student_level'  => ['nullable', Rule::requiredIf(fn () => $request->boolean('is_student')), Rule::in(array_keys(User::STUDENT_LEVELS))],
             'school'         => ['nullable', 'required_if:is_student,1', 'string', 'max:255'],
+            'school_other'   => ['nullable', Rule::requiredIf(fn () => strcasecmp((string) $request->input('school'), 'other') === 0), 'string', 'max:255'],
             'occupation'     => ['nullable', 'string', 'max:255'],
             'house_no'       => ['required', 'string', 'max:255'],
             'street'         => ['required', 'string', 'max:255'],
@@ -65,9 +86,18 @@ class ProfileController extends Controller
             }
         }
 
-        $data['gender_other'] = $data['gender'] === 'others' ? $data['gender_other'] : null;
+        $data['gender'] = in_array($data['sex_at_birth'], ['female', 'male'], true) ? $data['sex_at_birth'] : null;
+        $data['gender_other'] = null;
+        $data['gender_identity_other'] = $data['preferred_gender_identity'] === 'self_describe' ? ($data['gender_identity_other'] ?? null) : null;
+        $data['is_lgbtqia'] = (bool) ($data['is_lgbtqia'] ?? false);
         $data['is_student'] = (bool) ($data['is_student'] ?? false);
-        $data['school'] = $data['is_student'] ? ($data['school'] ?? null) : null;
+        $data['student_level'] = $data['is_student'] ? ($data['student_level'] ?? null) : null;
+        $data['is_pwd'] = (bool) ($data['is_pwd'] ?? false);
+        $data['is_4ps_member'] = (bool) ($data['is_4ps_member'] ?? false);
+        $data['is_solo_parent'] = (bool) ($data['is_solo_parent'] ?? false);
+        $data['is_out_of_school_youth'] = (bool) ($data['is_out_of_school_youth'] ?? false);
+        $data['school_other'] = $data['is_student'] && strcasecmp((string) ($data['school'] ?? ''), 'other') === 0 ? ($data['school_other'] ?? null) : null;
+        $data['school'] = $data['is_student'] ? (strcasecmp((string) ($data['school'] ?? ''), 'other') === 0 ? 'Other' : $data['school']) : null;
         $data['name'] = trim(collect([
             $data['first_name'], $data['middle_name'] ?? null, $data['last_name'], $data['suffix'] ?? null,
         ])->filter()->implode(' '));

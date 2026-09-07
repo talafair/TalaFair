@@ -20,12 +20,93 @@ class User extends Authenticatable
         'official' => 'Official',
     ];
 
+    public const STUDENT_LEVELS = [
+        'elementary' => 'Elementary',
+        'junior_high_school' => 'Junior High School',
+        'senior_high_school' => 'Senior High School',
+        'college' => 'College',
+        'graduate_school' => 'Graduate School',
+        'vocational' => 'Vocational / Technical',
+    ];
+
+    public const SCHOOLS = [
+        'university_of_saint_anthony' => 'University of Saint Anthony (USANT)',
+        'university_of_northeastern_philippines' => 'University of Northeastern Philippines (UNEP)',
+        'la_consolacion_college_iriga' => 'La Consolacion College - Iriga',
+        'regina_mondi_college' => 'Regina Mondi College, Inc.',
+        'oliveros_college' => 'Oliveros College, Inc.',
+        'ceguera_technological_colleges' => 'Ceguera Technological Colleges, Inc.',
+        'aclc_college_iriga' => 'ACLC College of Iriga',
+        'iriga_city_science_high_school' => 'Iriga City Science High School',
+        'rinconada_national_technical_vocational_school' => 'Rinconada National Technical Vocational School',
+        'fatima_integrated_farm_school' => 'Fatima Integrated Farm School',
+        'holy_child_educational_learning_center' => 'Holy Child Educational Learning Center, Inc.',
+        'bicol_trinity_mission_learning_center' => 'Bicol Trinity Mission Learning Center, Inc.',
+        'san_agustin_stand_alone_senior_high_school' => 'San Agustin Stand Alone Senior High School',
+        'san_antonio_national_high_school' => 'San Antonio National High School',
+        'san_francisco_national_high_school' => 'San Francisco National High School',
+        'san_pedro_national_high_school' => 'San Pedro National High School',
+        'sagrada_national_high_school' => 'Sagrada National High School',
+        'santo_nino_national_high_school' => 'Santo Niño National High School',
+        'santa_maria_national_high_school' => 'Santa Maria National High School',
+        'zeferino_arroyo_national_high_school' => 'Zeferino Arroyo National High School',
+        'perpetual_help_national_high_school' => 'Perpetual Help National High School',
+        'cspc' => 'Camarines Sur Polytechnic Colleges (CSPC)',
+        'nabua_national_high_school' => 'Nabua National High School',
+        'la_purisima_national_high_school' => 'La Purisima National High School',
+        'malawag_national_high_school' => 'Malawag National High School',
+        'lourdes_provincial_high_school' => 'Lourdes Provincial High School',
+        'tandaay_provincial_high_school' => 'Tandaay Provincial High School',
+        'victor_bernal_provincial_high_school' => 'Victor Bernal Provincial High School',
+        'san_jose_integrated_school' => 'San Jose Integrated School',
+        'sto_domingo_institute' => 'Sto. Domingo Institute',
+        'montessori_childrens_house' => "Montessori Children's House of Learning",
+        'moreh_asia_pacific_academy' => 'Moreh Asia Pacific Academy',
+        'cbsua' => 'Central Bicol State University of Agriculture (CBSUA)',
+        'pili_capital_college' => 'Pili Capital College, Inc.',
+        'philippine_computer_foundation_college' => 'Philippine Computer Foundation College, Inc. - Pili',
+        'universidad_de_sta_isabel_pili' => 'Universidad de Sta. Isabel - Pili Campus',
+        'camarines_science_oriented_high_school' => 'Camarines Science Oriented High School',
+        'camarines_sur_sports_academy' => 'Camarines Sur Sports Academy',
+        'pili_national_high_school' => 'Pili National High School',
+        'bikol_high_school_for_arts_and_culture' => 'Bikol High School for the Arts and Culture',
+        'computer_science_high_school_of_bicolandia' => 'Computer Science High School of Bicolandia',
+        'gov_mariano_villafuerte_high_school' => 'Gov. Mariano E. Villafuerte High School',
+        'san_jose_pili_national_high_school' => 'San Jose Pili National High School',
+        'rodriguez_national_high_school' => 'Rodriguez National High School',
+        'altamarino_clasio_high_school' => 'Altamarino-Clasio High School',
+        'binobong_high_school' => 'Binobong High School',
+        'binauaanan_high_school' => 'Binauaanan High School',
+        'sagurong_high_school' => 'Sagurong High School',
+        'v_bagasina_memorial_high_school' => 'V. Bagasina Sr. Memorial High School',
+        'blessed_name_of_mary_learning_school' => 'Blessed Name of Mary Learning School',
+        'yobhel_christian_academy' => 'Yobhel Christian Academy',
+        'st_louise_de_marillac_school' => 'St. Louise de Marillac School',
+        'pili_parochial_school' => 'Pili Parochial School',
+        'la_consolacion_college_baao' => 'La Consolacion College Baao',
+        'baao_community_college' => 'Baao Community College',
+        'rosary_school' => 'Rosary School, Inc.',
+        'sta_monica_academy' => 'Sta. Monica Academy',
+        'ateneo_de_naga' => 'Ateneo de Naga University',
+        'biscast' => 'Bicol State College of Applied Sciences and Technology (BISCAST)',
+        'city_college_of_naga' => 'City College of Naga',
+        'naga_college_foundation' => 'Naga College Foundation, Inc.',
+        'university_of_nueva_caceres' => 'University of Nueva Caceres',
+        'universidad_de_sta_isabel' => 'Universidad de Sta. Isabel',
+        'sti_college_naga' => 'STI College Naga',
+        'naga_view_adventist_college' => 'Naga View Adventist College',
+        'camarines_sur_national_high_school' => 'Camarines Sur National High School',
+        'naga_city_science_high_school' => 'Naga City Science High School',
+        'naga_city_school_of_arts_and_trades' => 'Naga City School of Arts and Trades',
+        'other' => 'Other',
+    ];
+
     protected static function booted(): void
     {
         static::saving(function (User $user): void {
             foreach ([
-                'name', 'first_name', 'middle_name', 'last_name', 'suffix', 'gender_other',
-                'school', 'occupation', 'street', 'barangay', 'city', 'province',
+                'name', 'first_name', 'middle_name', 'last_name', 'suffix', 'gender_other', 'gender_identity_other',
+                'school', 'school_other', 'occupation', 'street', 'barangay', 'city', 'province',
                 'country', 'head_of_family_name',
             ] as $field) {
                 if ($user->getAttribute($field) !== null) {
@@ -40,8 +121,8 @@ class User extends Authenticatable
         'name',
         'first_name', 'middle_name', 'last_name', 'suffix',
         'username', 'email', 'password', 'role', 'official_group', 'official_position', 'is_verified', 'points',
-        'gender', 'gender_other', 'birthdate', 'contact_number',
-        'is_student', 'school', 'occupation',
+        'gender', 'gender_other', 'sex_at_birth', 'preferred_gender_identity', 'gender_identity_other', 'birthdate', 'contact_number',
+        'is_student', 'student_level', 'is_pwd', 'is_4ps_member', 'is_solo_parent', 'is_out_of_school_youth', 'is_lgbtqia', 'school', 'school_other', 'occupation',
         'house_no', 'street', 'zone', 'barangay', 'city', 'province', 'country', 'postal_code',
         'is_head_of_family', 'head_of_family_name', 'head_of_family_id',
         'unique_id', 'avatar_path',
@@ -58,6 +139,11 @@ class User extends Authenticatable
             'is_head_of_family' => 'boolean',
             'is_verified'      => 'boolean',
             'is_student'       => 'boolean',
+            'is_pwd'           => 'boolean',
+            'is_4ps_member'    => 'boolean',
+            'is_solo_parent'   => 'boolean',
+            'is_out_of_school_youth' => 'boolean',
+            'is_lgbtqia'       => 'boolean',
         ];
     }
 
@@ -163,6 +249,14 @@ class User extends Authenticatable
 
         foreach ($audiences as $key) {
             $match = match ($key) {
+                'students'       => (bool) $this->is_student,
+                'women'          => in_array($this->preferred_gender_identity, ['woman', 'transgender_woman'], true)
+                    || ($this->preferred_gender_identity === null && $this->sex_at_birth === 'female'),
+                'pwd'            => (bool) $this->is_pwd,
+                'four_ps'        => (bool) $this->is_4ps_member,
+                'solo_parents'   => (bool) $this->is_solo_parent,
+                'out_of_school_youth' => (bool) $this->is_out_of_school_youth,
+                'lgbtqia'        => (bool) $this->is_lgbtqia,
                 'youth'         => $age !== null && $age >= 15 && $age <= 30,
                 'senior'        => $age !== null && $age >= 60,
                 'family_heads'  => (bool) $this->is_head_of_family,
@@ -187,6 +281,15 @@ class User extends Authenticatable
         return static::where(function (Builder $query) use ($audiences) {
             foreach ($audiences as $audience) {
                 match ($audience) {
+                    'students' => $query->orWhere('is_student', true),
+                    'women' => $query->orWhere(fn ($scope) => $scope
+                        ->whereIn('preferred_gender_identity', ['woman', 'transgender_woman'])
+                        ->orWhere(fn ($legacy) => $legacy->whereNull('preferred_gender_identity')->where('sex_at_birth', 'female'))),
+                    'pwd' => $query->orWhere('is_pwd', true),
+                    'four_ps' => $query->orWhere('is_4ps_member', true),
+                    'solo_parents' => $query->orWhere('is_solo_parent', true),
+                    'out_of_school_youth' => $query->orWhere('is_out_of_school_youth', true),
+                    'lgbtqia' => $query->orWhere('is_lgbtqia', true),
                     'youth' => $query->orWhere(fn ($scope) => $scope->youth()),
                     'senior' => $query->orWhere(fn ($scope) => $scope->seniors()),
                     'family_heads' => $query->orWhere(fn ($scope) => $scope->familyHeads()),

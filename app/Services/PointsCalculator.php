@@ -10,7 +10,8 @@ class PointsCalculator
 
     public static function score(Announcement $event, bool $preRegistered, bool $early): int
     {
-        return (int) round(self::raffleWeight($event, $early));
+        return (int) round(self::raffleWeight($event, $early))
+            + ($preRegistered ? (int) $event->confirmation_points : 0);
     }
 
     public static function raffleWeight(Announcement $event, bool $early): float
@@ -26,11 +27,11 @@ class PointsCalculator
         return [
             'base'           => $base,
             'participation'  => 0,
-            'pre_registered' => 0,
-            'confirmation'   => 0,
+            'pre_registered' => $preRegistered ? 1 : 0,
+            'confirmation'   => $preRegistered ? (int) $event->confirmation_points : 0,
             'engagement'     => $early ? 1 : 0,
             'early_bonus'    => $bonus,
-            'total'          => self::score($event, false, $early),
+            'total'          => self::score($event, $preRegistered, $early),
         ];
     }
 }
