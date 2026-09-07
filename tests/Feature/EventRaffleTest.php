@@ -6,6 +6,7 @@ use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\EventRafflePrize;
 use App\Models\EventRaffleWinner;
+use App\Models\PointTransaction;
 use App\Models\User;
 use App\Services\RaffleService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -52,6 +53,49 @@ class EventRaffleTest extends TestCase
         RaffleService::draw($event, $prize);
 
         $this->assertEqualsWithDelta(110.0, $event->raffleEntries()->where('user_id', $resident->id)->value('weight'), 0.0001);
+    }
+
+    public function test_points_prize_awards_points_and_creates_one_history_record(): void
+    {
+        [$event, $resident] = $this->eventWithAttendance(points: 0, basePoints: 100);
+        $prize = EventRafflePrize::create([
+            'announcement_id' => $event->id,
+            'name' => '100 TalaFair Points',
+            'type' => 'Points',
+            'prize_type' => 'points',
+            'points_amount' => 100,
+            'quantity' => 1,
+        ]);
+
+        $winner = RaffleService::draw($event, $prize);
+
+        $this->assertSame($resident->id, $winner->user_id);
+        $this->assertSame(100, $resident->fresh()->points);
+        $this->assertDatabaseHas('point_transactions', [
+            'user_id' => $resident->id,
+            'announcement_id' => $event->id,
+            'type' => 'raffle_prize',
+            'base_points' => 100,
+            'points_awarded' => 100,
+        ]);
+        $this->assertSame(1, PointTransaction::where('user_id', $resident->id)->where('type', 'raffle_prize')->count());
+    }
+
+    public function test_physical_prize_does_not_award_points(): void
+    {
+        [$event, $resident] = $this->eventWithAttendance(points: 25, basePoints: 100);
+        $prize = EventRafflePrize::create([
+            'announcement_id' => $event->id,
+            'name' => 'Grocery package',
+            'type' => 'Foods',
+            'prize_type' => 'foods',
+            'quantity' => 1,
+        ]);
+
+        RaffleService::draw($event, $prize);
+
+        $this->assertSame(25, $resident->fresh()->points);
+        $this->assertSame(0, PointTransaction::where('user_id', $resident->id)->where('type', 'raffle_prize')->count());
     }
 
     public function test_sample_raffle_has_multiple_attendees_and_typed_prizes(): void

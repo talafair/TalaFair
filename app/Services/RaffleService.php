@@ -8,6 +8,7 @@ use App\Models\EventRafflePrize;
 use App\Models\EventRaffleWinner;
 use App\Models\RaffleEntry;
 use App\Models\User;
+use App\Models\PointTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
@@ -80,7 +81,7 @@ class RaffleService
             $drawnAt = now();
             $entry->update(['selected_at' => $drawnAt]);
 
-            return EventRaffleWinner::create([
+            $winner = EventRaffleWinner::create([
                 'announcement_id' => $lockedEvent->id,
                 'event_raffle_prize_id' => $lockedPrize->id,
                 'user_id' => $entry->user_id,
@@ -88,6 +89,24 @@ class RaffleService
                 'draw_sequence' => $lockedPrize->winners()->count() + 1,
                 'drawn_at' => $drawnAt,
             ]);
+
+            if ($lockedPrize->isPointsPrize()) {
+                $points = (int) $lockedPrize->points_amount;
+                abort_if($points < 1, 422, 'This points prize is not configured correctly.');
+
+                $winner->user()->increment('points', $points);
+                PointTransaction::create([
+                    'user_id' => $winner->user_id,
+                    'announcement_id' => $lockedEvent->id,
+                    'type' => 'raffle_prize',
+                    'description' => 'Event Raffle Reward - ' . $lockedPrize->name,
+                    'base_points' => $points,
+                    'multiplier' => 1.00,
+                    'points_awarded' => $points,
+                ]);
+            }
+
+            return $winner;
         });
     }
 

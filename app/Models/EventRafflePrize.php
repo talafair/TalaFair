@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class EventRafflePrize extends Model
 {
-    protected $fillable = ['announcement_id', 'name', 'type', 'description', 'quantity', 'sort_order', 'created_by'];
+    protected $fillable = ['announcement_id', 'name', 'type', 'prize_type', 'points_amount', 'description', 'quantity', 'sort_order', 'created_by'];
 
     protected function casts(): array
     {
-        return ['quantity' => 'integer', 'sort_order' => 'integer'];
+        return ['quantity' => 'integer', 'points_amount' => 'integer', 'sort_order' => 'integer'];
     }
 
     public function announcement()
@@ -26,5 +26,15 @@ class EventRafflePrize extends Model
     public function remainingSlots(): int
     {
         return max(0, $this->quantity - $this->winners()->count());
+    }
+
+    public function getPrizeTypeLabelAttribute(): string
+    {
+        return \App\Models\Prize::TYPES[$this->prize_type]['label'] ?? ucfirst((string) $this->prize_type);
+    }
+
+    public function isPointsPrize(): bool
+    {
+        return $this->prize_type === 'points';
     }
 }

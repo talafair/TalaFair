@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\EventRafflePrize;
+use App\Models\PointTransaction;
+use App\Models\Prize;
 use App\Services\RaffleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -28,6 +30,8 @@ class EventRaffleController extends Controller
         return response()->json([
             'winners' => $announcement->raffleWinners()->with('prize')->get()->map(fn ($winner) => [
                 'prize' => $winner->prize->name,
+                'prize_type' => $winner->prize->prize_type_label,
+                'points_awarded' => $winner->prize->isPointsPrize() ? $winner->prize->points_amount : 0,
                 'name' => $winner->public_name,
                 'drawn_at' => $winner->drawn_at->toISOString(),
             ]),
@@ -40,7 +44,7 @@ class EventRaffleController extends Controller
         $this->validatePrizeRequest($request);
 
         EventRafflePrize::create([
-            ...$request->only('name', 'type', 'description', 'quantity'),
+            ...$this->prizeFields($request),
             'announcement_id' => $announcement->id,
             'created_by' => $request->user()->id,
             'sort_order' => $announcement->rafflePrizes()->max('sort_order') + 1,
@@ -55,7 +59,7 @@ class EventRaffleController extends Controller
         $this->validatePrizeRequest($request);
         // Only block modification if this specific prize has winners
         abort_if($prize->winners()->exists(), 422, 'This prize cannot be changed because a winner has already been drawn.');
-        $prize->update($request->only('name', 'type', 'description', 'quantity'));
+        $prize->update($this->prizeFields($request));
 
         return back()->with('success', 'Raffle prize updated.');
     }
@@ -86,6 +90,8 @@ class EventRaffleController extends Controller
                 'winner' => $winner->winner_name_snapshot,
                 'winner_user_id' => $winner->user_id,
                 'prize' => $winner->prize->name,
+                'prize_type' => $winner->prize->prize_type_label,
+                'points_awarded' => $winner->prize->isPointsPrize() ? $winner->prize->points_amount : 0,
                 'drawn_at' => $winner->drawn_at->toISOString(),
             ]);
         }
@@ -97,9 +103,19 @@ class EventRaffleController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'max:100'],
+            'prize_type' => ['required', 'in:' . implode(',', array_diff(array_keys(Prize::TYPES), ['none']))],
+            'points_amount' => ['required_if:prize_type,points', 'nullable', 'integer', 'min:1', 'max:1000000'],
             'description' => ['nullable', 'string', 'max:2000'],
             'quantity' => ['required', 'integer', 'min:1', 'max:10000'],
         ]);
+    }
+
+    private function prizeFields(Request $request): array
+    {
+        $data = $request->only('name', 'description', 'quantity', 'prize_type', 'points_amount');
+        $data['type'] = Prize::TYPES[$data['prize_type']]['label'];
+        $data['points_amount'] = $data['prize_type'] === 'points' ? (int) $data['points_amount'] : null;
+
+        return $data;
     }
 }

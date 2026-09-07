@@ -17,7 +17,7 @@
       <div class="card-header bg-white fw-bold"><i class="bi bi-trophy me-1 text-yg"></i>Winners</div>
       <div id="raffle-winners" class="list-group list-group-flush">
         @forelse ($winners as $winner)
-          <div class="list-group-item d-flex justify-content-between gap-3"><span>{{ $winner->prize->name }}</span><strong>{{ $winner->public_name }}</strong></div>
+          <div class="list-group-item d-flex justify-content-between gap-3"><span>{{ $winner->prize->name }} <small class="text-secondary">({{ $winner->prize->prize_type_label }}{{ $winner->prize->isPointsPrize() ? ': +' . number_format($winner->prize->points_amount) . ' points' : '' }})</small></span><strong>{{ $winner->public_name }}</strong></div>
         @empty
           <div class="list-group-item text-secondary">The raffle has not started yet.</div>
         @endforelse
@@ -41,7 +41,7 @@
       if (current === last) return;
       last = current;
       list.innerHTML = data.winners.length
-        ? data.winners.map(winner => `<div class="list-group-item d-flex justify-content-between gap-3"><span>${escapeHtml(winner.prize)}</span><strong>${escapeHtml(winner.name)}</strong></div>`).join('')
+        ? data.winners.map(winner => `<div class="list-group-item d-flex justify-content-between gap-3"><span>${escapeHtml(winner.prize)} <small class="text-secondary">(${escapeHtml(winner.prize_type)}${winner.points_awarded ? `: +${winner.points_awarded} points` : ''})</small></span><strong>${escapeHtml(winner.name)}</strong></div>`).join('')
         : '<div class="list-group-item text-secondary">The raffle has not started yet.</div>';
     };
     const escapeHtml = value => String(value).replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[character]));

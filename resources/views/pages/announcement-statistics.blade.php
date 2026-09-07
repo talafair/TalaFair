@@ -101,7 +101,8 @@
             <form method="POST" action="{{ route('announcements.raffle.prizes.store', $announcement) }}" class="row g-2 align-items-end border-bottom pb-3 mb-3">
               @csrf
               <div class="col-md-4"><label class="form-label small fw-semibold">Prize Name</label><input name="name" class="form-control" required maxlength="255"></div>
-              <div class="col-md-3"><label class="form-label small fw-semibold">Type of Prize</label><input name="type" class="form-control" required maxlength="100" placeholder="e.g. Grocery package"></div>
+              <div class="col-md-3"><label class="form-label small fw-semibold">Type of Prize</label><select name="prize_type" class="form-select raffle-prize-type" data-points-target="raffle-points-add" required>@foreach (\App\Models\Prize::TYPES as $value => $type)@if($value !== 'none')<option value="{{ $value }}" @selected($value === 'foods')>{{ $type['label'] }}</option>@endif @endforeach</select></div>
+              <div class="col-md-2 d-none" id="raffle-points-add"><label class="form-label small fw-semibold">Points to Award</label><input name="points_amount" type="number" min="1" max="1000000" class="form-control"></div>
               <div class="col-md-2"><label class="form-label small fw-semibold">No. of Winners</label><input name="quantity" type="number" min="1" max="10000" value="1" class="form-control" required></div>
               <div class="col-md-2"><label class="form-label small fw-semibold">Description</label><input name="description" class="form-control" maxlength="2000"></div>
               <div class="col-md-1"><button class="btn btn-yg w-100" title="Add prize"><i class="bi bi-plus-lg"></i></button></div>
@@ -111,7 +112,7 @@
             @forelse ($rafflePrizes as $prize)
               <div class="list-group-item px-0">
                 <div class="d-flex justify-content-between align-items-center gap-2">
-                  <span class="fw-semibold">{{ $prize->name }} <span class="small text-secondary fw-normal">({{ $prize->type ?: 'Prize' }})</span></span>
+                  <span class="fw-semibold">{{ $prize->name }} <span class="small text-secondary fw-normal">({{ $prize->prize_type ? $prize->prize_type_label : ($prize->type ?: 'Prize') }}{{ $prize->isPointsPrize() ? ': ' . number_format($prize->points_amount) . ' points' : '' }})</span></span>
                   <span class="small text-secondary raffle-prize-count" data-prize-id="{{ $prize->id }}" data-quantity="{{ $prize->quantity }}">{{ $prize->winners_count }} / {{ $prize->quantity }} winners</span>
                 </div>
                 @if ($prize->description)<div class="small text-secondary">{{ $prize->description }}</div>@endif
@@ -137,7 +138,8 @@
                     <form id="edit-prize-{{ $prize->id }}" method="POST" action="{{ route('announcements.raffle.prizes.update', [$announcement, $prize]) }}" class="collapse row g-2 mt-1">
                       @csrf @method('PUT')
                       <div class="col-md-4"><label class="form-label small">Prize Name</label><input name="name" value="{{ $prize->name }}" class="form-control form-control-sm" required></div>
-                      <div class="col-md-3"><label class="form-label small">Type of Prize</label><input name="type" value="{{ $prize->type }}" class="form-control form-control-sm" required></div>
+                      <div class="col-md-3"><label class="form-label small">Type of Prize</label><select name="prize_type" class="form-select form-select-sm raffle-prize-type" data-points-target="raffle-points-{{ $prize->id }}" required>@foreach (\App\Models\Prize::TYPES as $value => $type)@if($value !== 'none')<option value="{{ $value }}" @selected(($prize->prize_type ?: 'foods') === $value)>{{ $type['label'] }}</option>@endif @endforeach</select></div>
+                      <div class="col-md-2 @if(($prize->prize_type ?: 'foods') !== 'points') d-none @endif" id="raffle-points-{{ $prize->id }}"><label class="form-label small">Points to Award</label><input name="points_amount" type="number" min="1" max="1000000" value="{{ $prize->points_amount }}" class="form-control form-control-sm"></div>
                       <div class="col-md-2"><label class="form-label small">No. of Winners</label><input name="quantity" type="number" min="1" value="{{ $prize->quantity }}" class="form-control form-control-sm" required></div>
                       <div class="col-md-3"><label class="form-label small">Description</label><input name="description" value="{{ $prize->description }}" class="form-control form-control-sm"></div>
                       <div class="col-12"><button class="btn btn-dark btn-sm">Save prize</button></div>
@@ -190,6 +192,19 @@
 @endsection
 
 @push('scripts')
+<script>
+  document.querySelectorAll('.raffle-prize-type').forEach(select => {
+    const pointsWrap = document.getElementById(select.dataset.pointsTarget);
+    const pointsInput = pointsWrap?.querySelector('input[name="points_amount"]');
+    const syncPoints = () => {
+      const isPoints = select.value === 'points';
+      pointsWrap?.classList.toggle('d-none', !isPoints);
+      if (pointsInput) pointsInput.required = isPoints;
+    };
+    select.addEventListener('change', syncPoints);
+    syncPoints();
+  });
+</script>
 <style>
   .raffle-stage { background: radial-gradient(circle at center, #244d30 0, #102318 52%, #07110b 100%); color: #fff; }
   .raffle-stage-wheel { width: min(72vw, 34rem); aspect-ratio: 1; border-radius: 50%; border: .8rem solid #fbc02d; box-shadow: 0 0 0 1rem rgba(251, 192, 45, .15), 0 1.5rem 4rem rgba(0,0,0,.45); position: relative; overflow: hidden; transition: transform 5.2s cubic-bezier(.12,.7,.08,1); }
@@ -212,6 +227,37 @@
 
   const raffleParticipants = @json($raffleAttendees->map(fn ($attendance) => ['id' => $attendance->user_id, 'name' => $attendance->user->full_name])->values());
 
+  const wheelColors = [
+    { background: '#fbc02d', text: '#1f2937' },
+    { background: '#2e7d32', text: '#ffffff' },
+    { background: '#0288d1', text: '#ffffff' },
+    { background: '#ef6c00', text: '#ffffff' },
+    { background: '#c2185b', text: '#ffffff' },
+    { background: '#6a1b9a', text: '#ffffff' },
+  ];
+
+  const buildWheelColors = participantCount => {
+    if (participantCount < 1) return [];
+
+    const assigned = [];
+    for (let index = 0; index < participantCount; index += 1) {
+      const previous = assigned[index - 1];
+      const first = assigned[0];
+      const candidates = wheelColors
+        .map((color, colorIndex) => ({ color, colorIndex }))
+        .sort(({ colorIndex: left }, { colorIndex: right }) =>
+          (left - (index % wheelColors.length)) - (right - (index % wheelColors.length))
+        );
+      const selected = candidates.find(({ color }) =>
+        color !== previous && (index !== participantCount - 1 || participantCount < 2 || color !== first)
+      );
+
+      assigned.push(selected?.color ?? wheelColors[index % wheelColors.length]);
+    }
+
+    return assigned;
+  };
+
   const openRaffleStage = (form, data) => {
     const stage = document.getElementById('raffleStage');
     const wheel = document.getElementById('raffleStageWheel');
@@ -220,6 +266,7 @@
     const names = raffleParticipants.map(participant => participant.name);
     const winnerIndex = raffleParticipants.findIndex(participant => participant.id === data.winner_user_id);
     const angle = 360 / Math.max(names.length, 1);
+    const segmentColors = buildWheelColors(names.length);
 
     stage.hidden = false;
     document.documentElement.requestFullscreen?.().catch(() => {});
@@ -229,11 +276,12 @@
     document.getElementById('raffleStageStart').disabled = true;
     wheel.innerHTML = '';
     wheel.style.transform = 'rotate(0deg)';
-    wheel.style.background = `conic-gradient(${names.map((name, index) => `${index % 2 ? '#7cb342' : '#fbc02d'} ${index * angle}deg ${(index + 1) * angle}deg`).join(', ')})`;
+    wheel.style.background = `conic-gradient(${segmentColors.map((color, index) => `${color.background} ${index * angle}deg ${(index + 1) * angle}deg`).join(', ')})`;
     names.forEach((name, index) => {
       const label = document.createElement('span');
       label.className = 'raffle-wheel-label';
       label.textContent = name;
+      label.style.color = segmentColors[index].text;
       label.style.transform = `rotate(${index * angle + angle / 2 - 90}deg) translateX(-100%)`;
       wheel.appendChild(label);
     });
@@ -242,7 +290,7 @@
       wheel.style.transform = `rotate(${360 * 6 + (360 - ((winnerIndex < 0 ? 0 : winnerIndex) * angle + angle / 2))}deg)`;
     });
     window.setTimeout(() => {
-      status.innerHTML = `<span class="text-warning">Congratulations!</span><br><strong>${data.winner}</strong>`;
+      status.innerHTML = `<span class="text-warning">Congratulations!</span><br><strong>${data.winner}</strong><br><span>${data.prize_type}${data.points_awarded ? ` · +${data.points_awarded} points` : ''}</span>`;
       window.setTimeout(() => window.location.reload(), 2200);
     }, 5400);
   };
