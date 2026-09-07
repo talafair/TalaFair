@@ -28,7 +28,16 @@ class AnnouncementController extends Controller
             ->when($featured, fn ($q) => $q->whereKeyNot($featured->getKey()))
             ->paginate(15);
 
-        return view('pages.announcements', compact('announcements', 'featured'));
+        $facilitators = User::query()
+            ->where('role', 'official')
+            ->where(fn ($query) => $query
+                ->where('official_group', '!=', 'personnel')
+                ->orWhere('is_verified', true))
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        return view('pages.announcements', compact('announcements', 'featured', 'facilitators'));
     }
 
     public function create()
@@ -53,6 +62,7 @@ class AnnouncementController extends Controller
         }
 
         $announcement->save();   // Auditable stamps created_by / updated_by + audit log
+        $this->syncFacilitators($announcement, $data['facilitator_ids'] ?? []);
 
         if ($announcement->is_event) {
             $this->notifyAudience($announcement, 'New event: ' . $announcement->title,
@@ -145,6 +155,7 @@ class AnnouncementController extends Controller
         }
 
         $announcement->save();
+        $this->syncFacilitators($announcement, $data['facilitator_ids'] ?? []);
 
         return redirect()->route('announcements.show', $announcement)
             ->with('success', 'Announcement updated. The change is logged under your ID.');
@@ -325,6 +336,15 @@ class AnnouncementController extends Controller
                 'venue_lat'       => ['required', 'numeric', 'between:-90,90'],
                 'venue_lng'       => ['required', 'numeric', 'between:-180,180'],
                 'geofence_radius' => ['required', 'integer', 'min:20', 'max:5000'],
+                'facilitator_ids' => ['nullable', 'array'],
+                'facilitator_ids.*' => [
+                    'integer',
+                    Rule::exists('users', 'id')->where(fn ($query) => $query
+                        ->where('role', 'official')
+                        ->where(fn ($authorized) => $authorized
+                            ->where('official_group', '!=', 'personnel')
+                            ->orWhere('is_verified', true))),
+                ],
             ];
         }
 
@@ -357,6 +377,38 @@ class AnnouncementController extends Controller
         unset($data['banner']);
 
         return $data;
+    }
+
+    private function syncFacilitators(Announcement $announcement, array $facilitatorIds): void
+    {
+        if (! $announcement->is_event) {
+            $announcement->facilitators()->delete();
+
+            return;
+        }
+
+        $ids = collect($facilitatorIds)->map(fn ($id) => (int) $id)->unique()->values();
+        $existingIds = $announcement->facilitators()->pluck('user_id');
+        $announcement->facilitators()->whereNotIn('user_id', $ids)->delete();
+
+        $newIds = $ids->diff($existingIds);
+        $ids->each(fn (int $userId) => $announcement->facilitators()->updateOrCreate(
+            ['user_id' => $userId],
+            ['assigned_by' => Auth::id(), 'role' => 'facilitator']
+        ));
+
+        if ($newIds->isNotEmpty()) {
+            $now = now();
+            UserNotification::insert($newIds->map(fn (int $userId) => [
+                'user_id' => $userId,
+                'announcement_id' => $announcement->id,
+                'title' => 'Event facilitator assignment',
+                'body' => "You have been assigned as a facilitator for {$announcement->title}. You may record your attendance using the event QR code.",
+                'created_by' => Auth::id(),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all());
+        }
     }
 
     /** Drops a notification into every targeted resident's inbox. Returns the count. */

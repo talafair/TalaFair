@@ -60,6 +60,7 @@ class AccountController extends Controller
             'rank' => $rank,
             'recentSpins' => $recentSpins,
             'totalSpins' => $user->spins()->count(),
+            'recentPointTransactions' => $user->pointTransactions()->with('announcement')->latest()->take(10)->get(),
             'householdMembers' => $householdMembers,
             'householdHead' => $householdHead,
         ]);

@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\EventSubstitution;
 use App\Models\User;
 use App\Models\EventRaffleEntry;
+use App\Models\PointTransaction;
 use App\Services\Geofence;
 use App\Services\PointsCalculator;
 use App\Services\RaffleService;
@@ -115,6 +116,11 @@ class AttendanceController extends Controller
             return $this->fail('Guest QR scanning is not enabled for this event.');
         }
 
+        $canFacilitate = $viewer->isOfficial() || $this->isAssignedFacilitator($viewer, $event);
+        if ($viewer->role === 'official' && ! $canFacilitate) {
+            return $this->fail('You are not assigned or authorized to facilitate this event.');
+        }
+
         if ($windowError = $this->attendanceWindowError($event)) {
             return $windowError;
         }
@@ -139,7 +145,7 @@ class AttendanceController extends Controller
         // Determine who is attending
         $attendee = $user;
         $attendanceMethod = 'event_qr_scan';
-        $userCategory = $user->role === 'official' ? 'official' : 'resident';
+        $userCategory = $canFacilitate ? 'official' : 'resident';
 
         // If official, check if they're trying to record a resident's attendance
         // by attempting to parse the token as a resident QR
@@ -154,7 +160,7 @@ class AttendanceController extends Controller
             // else: Token is an event QR, so record the official's own attendance
         }
 
-        if (! $this->canAttendEvent($attendee, $event)) {
+        if ($userCategory !== 'official' && ! $this->canAttendEvent($attendee, $event)) {
             return $this->fail('You are not eligible to attend this event.');
         }
 
@@ -280,8 +286,7 @@ class AttendanceController extends Controller
         $early = $event->isEarlyScan();
         $preRegistered = $event->rsvps()->where('user_id', $attendee->id)->where('status', 'attending')->exists();
         
-        // Officials do not earn points from attendance
-        $breakdown = $userCategory === 'official' ? ['total' => 0, 'base' => 0, 'confirmation' => 0, 'early_bonus' => 0, 'participation' => 0, 'pre_registered' => 0, 'engagement' => 0] : PointsCalculator::breakdown($event, $preRegistered, $early);
+        $breakdown = PointsCalculator::breakdown($event, $preRegistered, $early);
         $attendancePosition = null;
 
         try {
@@ -308,8 +313,19 @@ class AttendanceController extends Controller
             ]);
             
             // Residents receive account points; every successful attendee may enter the event raffle.
-            if ($userCategory === 'resident') {
+            if ($breakdown['total'] > 0) {
                 $attendee->increment('points', $breakdown['total']);
+                PointTransaction::create([
+                    'user_id' => $attendee->id,
+                    'announcement_id' => $lockedEvent->id,
+                    'type' => 'event_attendance',
+                    'description' => 'Event Attendance - ' . $lockedEvent->title,
+                    'base_points' => (int) $lockedEvent->base_points,
+                    'multiplier' => $early ? 1.10 : 1.00,
+                    'points_awarded' => $breakdown['total'],
+                ]);
+            }
+            if ($userCategory === 'resident') {
                 RaffleService::ensureEntry($attendee);
                 $attendee->refresh();
                 BadgeService::awardEligible($attendee, $lockedEvent, $attendancePosition);
@@ -330,18 +346,16 @@ class AttendanceController extends Controller
         }
 
         // Build response message
-        $message = "Attendance recorded successfully.";
-        if ($userCategory === 'resident') {
-            $message = $early
-                ? "Attendance recorded successfully. Checked in early and earned +{$breakdown['total']} points, including the 10% early bonus."
-                : "Attendance recorded successfully. You earned +{$breakdown['total']} points.";
-        }
+        $message = $early
+            ? "Attendance recorded successfully. You earned +{$breakdown['total']} points, including the 10% early bonus."
+            : "Attendance recorded successfully. You earned +{$breakdown['total']} points.";
 
         return response()->json([
             'ok' => true,
             'scan_count' => session("attendance_scans.{$event->id}", 0),
             'event' => $event->title,
             'resident' => $attendee->full_name,
+            'points' => $breakdown['total'],
             'early' => $early,
             'breakdown' => $breakdown,
             'message' => $message,
@@ -408,6 +422,14 @@ class AttendanceController extends Controller
             || EventSubstitution::where('announcement_id', $event->id)
                 ->where('substitute_user_id', $user->id)
                 ->exists();
+    }
+
+    private function isAssignedFacilitator(User $user, Announcement $event): bool
+    {
+        return $event->facilitators()
+            ->where('user_id', $user->id)
+            ->whereHas('user', fn ($query) => $query->where('role', 'official')->where('is_verified', true))
+            ->exists();
     }
 
     /** A resident's own attendance record. */

@@ -76,6 +76,23 @@
       @endforeach
     </div>
 
+    @php
+      $assignedFacilitatorIds = old('facilitator_ids', $a?->facilitatorUsers?->pluck('id')->all() ?? []);
+    @endphp
+    <hr class="my-4">
+    <label class="form-label fw-semibold">Event Facilitators / Assigned Personnel <span class="text-secondary fw-normal">(optional)</span></label>
+    <div class="form-text mb-2">Assign verified officials or authorized personnel who may record their attendance through this event QR code.</div>
+    <select name="facilitator_ids[]" class="form-select" multiple size="4">
+      @foreach (($facilitators ?? collect()) as $facilitator)
+        <option value="{{ $facilitator->id }}" @selected(in_array($facilitator->id, $assignedFacilitatorIds))>
+          {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
+        </option>
+      @endforeach
+    </select>
+    @if (($facilitators ?? collect())->isEmpty())
+      <div class="small text-secondary mt-2">No verified officials or personnel are available to assign yet.</div>
+    @endif
+
     <hr class="my-4">
 
     <div class="row g-3">

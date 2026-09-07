@@ -65,6 +65,25 @@
       </div>
     </div>
 
+    <div class="col-12">
+      <div class="card yg-card">
+        <div class="card-body p-4">
+          <h6 class="fw-bold mb-3"><i class="bi bi-clock-history me-1 text-yg"></i>Points history</h6>
+          @forelse ($recentPointTransactions as $transaction)
+            <div class="d-flex justify-content-between align-items-center gap-3 border-bottom py-2">
+              <div>
+                <div class="fw-semibold">{{ $transaction->description }}</div>
+                <div class="small text-secondary">Base points: {{ $transaction->base_points }} · Multiplier: {{ number_format($transaction->multiplier, 2) }}x · {{ $transaction->created_at->format('M j, Y g:i A') }}</div>
+              </div>
+              <span class="fw-bold text-success">+{{ $transaction->points_awarded }}</span>
+            </div>
+          @empty
+            <p class="small text-secondary mb-0">No point transactions yet.</p>
+          @endforelse
+        </div>
+      </div>
+    </div>
+
     @if ($householdHead)
       <div class="col-12">
         <div class="card yg-card">

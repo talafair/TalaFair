@@ -125,6 +125,11 @@ class User extends Authenticatable
         return $this->role === 'guest';
     }
 
+    public function pointTransactions()
+    {
+        return $this->hasMany(PointTransaction::class);
+    }
+
     /* ------------------------------------------------------------------
      | Audience scopes (used to target announcements)
      * ------------------------------------------------------------------*/

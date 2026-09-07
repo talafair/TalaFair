@@ -181,6 +181,18 @@ class Announcement extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    public function facilitators()
+    {
+        return $this->hasMany(EventFacilitator::class);
+    }
+
+    public function facilitatorUsers()
+    {
+        return $this->belongsToMany(User::class, 'event_facilitators')
+            ->withPivot('assigned_by', 'role')
+            ->withTimestamps();
+    }
+
     public function raffleEntries()
     {
         return $this->hasMany(EventRaffleEntry::class);

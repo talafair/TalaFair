@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\Attendance;
 use App\Models\EventRsvp;
+use App\Models\EventFacilitator;
 use App\Models\EventSubstitution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -116,6 +117,101 @@ class AttendanceQrTest extends TestCase
             'announcement_id' => $event->id,
             'user_id' => $resident->id,
         ]);
+    }
+
+    public function test_official_event_qr_attendance_awards_base_points(): void
+    {
+        [$official, , $event] = $this->attendanceSetup();
+
+        $response = $this->actingAs($official)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ]);
+
+        $response->assertOk()->assertJsonPath('breakdown.total', 100);
+        $this->assertSame(100, $official->fresh()->points);
+        $this->assertDatabaseHas('attendances', [
+            'user_id' => $official->id,
+            'user_category' => 'official',
+            'points_awarded' => 100,
+        ]);
+        $this->assertDatabaseHas('point_transactions', [
+            'user_id' => $official->id,
+            'announcement_id' => $event->id,
+            'type' => 'event_attendance',
+            'base_points' => 100,
+            'multiplier' => 1.00,
+            'points_awarded' => 100,
+        ]);
+    }
+
+    public function test_official_early_event_qr_attendance_awards_ten_percent_bonus(): void
+    {
+        [$official, , $event] = $this->attendanceSetup();
+        $event->update([
+            'event_start_at' => now()->addHour(),
+            'event_end_at' => now()->addHours(2),
+            'qr_expires_at' => now()->addHours(2),
+        ]);
+
+        $this->actingAs($official)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertOk()->assertJsonPath('breakdown.total', 110);
+
+        $this->assertSame(110, $official->fresh()->points);
+        $this->assertDatabaseHas('point_transactions', [
+            'user_id' => $official->id,
+            'announcement_id' => $event->id,
+            'base_points' => 100,
+            'multiplier' => 1.10,
+            'points_awarded' => 110,
+        ]);
+    }
+
+    public function test_assigned_personnel_can_record_own_event_qr_attendance(): void
+    {
+        [, , $event] = $this->attendanceSetup();
+        $personnel = User::factory()->create([
+            'role' => 'official',
+            'official_group' => 'personnel',
+            'is_verified' => true,
+            'points' => 0,
+        ]);
+        EventFacilitator::create([
+            'announcement_id' => $event->id,
+            'user_id' => $personnel->id,
+        ]);
+
+        $this->actingAs($personnel)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertOk()->assertJsonPath('breakdown.total', 100);
+
+        $this->assertSame(100, $personnel->fresh()->points);
+    }
+
+    public function test_unassigned_personnel_cannot_record_event_qr_attendance(): void
+    {
+        [, , $event] = $this->attendanceSetup();
+        $personnel = User::factory()->create([
+            'role' => 'official',
+            'official_group' => 'personnel',
+            'is_verified' => true,
+        ]);
+
+        $this->actingAs($personnel)->postJson(route('attendance.check'), [
+            'token' => $event->qr_token,
+            'announcement_id' => $event->id,
+            'latitude' => config('talafair.barangay_lat'),
+            'longitude' => config('talafair.barangay_lng'),
+        ])->assertUnprocessable()->assertJsonPath('ok', false);
     }
 
     public function test_confirmed_yes_does_not_change_attendance_points(): void
