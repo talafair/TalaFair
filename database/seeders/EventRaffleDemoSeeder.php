@@ -98,8 +98,8 @@ class EventRaffleDemoSeeder extends Seeder
                 ['announcement_id' => $event->id, 'user_id' => $resident->id],
                 [
                     'is_early' => $index === 0,
-                    'points_snapshot' => $data['points'],
-                    'weight' => RaffleService::weight($data['points'], $index === 0),
+                    'points_snapshot' => 50,
+                    'weight' => RaffleService::weight(50, $index === 0),
                     'snapshot_at' => now(),
                     'selected_at' => null,
                 ]
@@ -109,9 +109,9 @@ class EventRaffleDemoSeeder extends Seeder
         EventRafflePrize::where('announcement_id', $event->id)->delete();
 
         foreach ([
-            ['name' => 'Grand Prize - Grocery Package', 'description' => 'A family grocery package.', 'quantity' => 1],
-            ['name' => 'Major Prize - Gift Certificate', 'description' => 'A TalaFair gift certificate.', 'quantity' => 2],
-            ['name' => 'Consolation Prize - School Supplies', 'description' => 'A school supplies bundle.', 'quantity' => 2],
+            ['name' => 'Grand Prize - Grocery Package', 'type' => 'Grocery package', 'description' => 'A family grocery package.', 'quantity' => 1],
+            ['name' => 'Major Prize - Gift Certificate', 'type' => 'Gift certificate', 'description' => 'A TalaFair gift certificate.', 'quantity' => 2],
+            ['name' => 'Consolation Prize - School Supplies', 'type' => 'School supplies', 'description' => 'A school supplies bundle.', 'quantity' => 2],
         ] as $sortOrder => $prize) {
             EventRafflePrize::create([
                 ...$prize,

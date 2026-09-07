@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EventRafflePrize extends Model
 {
-    protected $fillable = ['announcement_id', 'name', 'description', 'quantity', 'sort_order', 'created_by'];
+    protected $fillable = ['announcement_id', 'name', 'type', 'description', 'quantity', 'sort_order', 'created_by'];
 
     protected function casts(): array
     {

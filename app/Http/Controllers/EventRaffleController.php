@@ -40,7 +40,7 @@ class EventRaffleController extends Controller
         $this->validatePrizeRequest($request);
 
         EventRafflePrize::create([
-            ...$request->only('name', 'description', 'quantity'),
+            ...$request->only('name', 'type', 'description', 'quantity'),
             'announcement_id' => $announcement->id,
             'created_by' => $request->user()->id,
             'sort_order' => $announcement->rafflePrizes()->max('sort_order') + 1,
@@ -55,7 +55,7 @@ class EventRaffleController extends Controller
         $this->validatePrizeRequest($request);
         // Only block modification if this specific prize has winners
         abort_if($prize->winners()->exists(), 422, 'This prize cannot be changed because a winner has already been drawn.');
-        $prize->update($request->only('name', 'description', 'quantity'));
+        $prize->update($request->only('name', 'type', 'description', 'quantity'));
 
         return back()->with('success', 'Raffle prize updated.');
     }
@@ -72,8 +72,6 @@ class EventRaffleController extends Controller
 
     public function draw(Request $request, Announcement $announcement, EventRafflePrize $prize): JsonResponse|RedirectResponse
     {
-        abort_unless($prize->announcement_id === $announcement->id, 404);
-
         try {
             $winner = RaffleService::draw($announcement, $prize);
         } catch (\Throwable $exception) {
@@ -86,6 +84,7 @@ class EventRaffleController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'winner' => $winner->winner_name_snapshot,
+                'winner_user_id' => $winner->user_id,
                 'prize' => $winner->prize->name,
                 'drawn_at' => $winner->drawn_at->toISOString(),
             ]);
@@ -98,6 +97,7 @@ class EventRaffleController extends Controller
     {
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'type' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string', 'max:2000'],
             'quantity' => ['required', 'integer', 'min:1', 'max:10000'],
         ]);

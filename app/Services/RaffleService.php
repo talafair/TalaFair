@@ -59,8 +59,9 @@ class RaffleService
             $lockedEvent = Announcement::query()->lockForUpdate()->findOrFail($event->id);
             $lockedPrize = EventRafflePrize::query()->lockForUpdate()->findOrFail($prize->id);
 
-            abort_unless($lockedEvent->raffle_enabled && $lockedPrize->announcement_id === $lockedEvent->id, 422);
-            abort_if($lockedPrize->remainingSlots() < 1, 422, 'This prize has no remaining winner slots.');
+            abort_unless($lockedEvent->is_event && $lockedEvent->raffle_enabled, 422, 'This raffle is not active.');
+            abort_unless($lockedPrize->announcement_id === $lockedEvent->id, 422, 'This prize does not belong to this raffle.');
+            abort_if($lockedPrize->remainingSlots() < 1, 422, 'All winner slots for this prize have already been filled.');
 
             if (! $lockedEvent->raffleEntries()->whereNotNull('snapshot_at')->exists()) {
                 self::snapshotEntries($lockedEvent);
