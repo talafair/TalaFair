@@ -7,24 +7,26 @@
   $schoolKey = array_search($savedSchool, \App\Models\User::SCHOOLS, true);
   $schoolOther = old('school_other', $user->school_other ?? null);
 @endphp
+<div class="w-100"></div>
 <div class="col-12 col-md-4">
   <input type="hidden" name="is_student" value="0">
-  <div class="form-check mb-3">
-    <input class="form-check-input" type="checkbox" name="is_student" value="1" id="{{ $prefix }}is_student" @checked($student)>
-    <label class="form-check-label" for="{{ $prefix }}is_student">Is a student</label>
-  </div>
   <input type="hidden" name="is_out_of_school_youth" value="0">
-  <div class="form-check mb-3">
+  <div class="form-check mb-2">
+    <input class="form-check-input" type="checkbox" name="is_student" value="1" id="{{ $prefix }}is_student" @checked($student)>
+    <label class="form-check-label" for="{{ $prefix }}is_student">Student</label>
+  </div>
+  <div class="form-check mb-2">
     <input class="form-check-input" type="checkbox" name="is_out_of_school_youth" value="1" id="{{ $prefix }}is_out_of_school_youth" @checked($outOfSchool)>
     <label class="form-check-label" for="{{ $prefix }}is_out_of_school_youth">Out-of-school Youth</label>
   </div>
   <input type="hidden" name="is_4ps_member" value="0">
-  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="is_4ps_member" value="1" id="{{ $prefix }}is_4ps_member" @checked(old('is_4ps_member', $user->is_4ps_member ?? false))><label class="form-check-label" for="{{ $prefix }}is_4ps_member">4Ps member</label></div>
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_4ps_member" value="1" id="{{ $prefix }}is_4ps_member" @checked(old('is_4ps_member', $user->is_4ps_member ?? false))><label class="form-check-label" for="{{ $prefix }}is_4ps_member">4Ps member</label></div>
   <input type="hidden" name="is_pwd" value="0">
-  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="is_pwd" value="1" id="{{ $prefix }}is_pwd" @checked(old('is_pwd', $user->is_pwd ?? false))><label class="form-check-label" for="{{ $prefix }}is_pwd">Person with Disability (PWD)</label></div>
+  <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_pwd" value="1" id="{{ $prefix }}is_pwd" @checked(old('is_pwd', $user->is_pwd ?? false))><label class="form-check-label" for="{{ $prefix }}is_pwd">Person with Disability (PWD)</label></div>
   <input type="hidden" name="is_solo_parent" value="0">
   <div class="form-check"><input class="form-check-input" type="checkbox" name="is_solo_parent" value="1" id="{{ $prefix }}is_solo_parent" @checked(old('is_solo_parent', $user->is_solo_parent ?? false))><label class="form-check-label" for="{{ $prefix }}is_solo_parent">Solo parent</label></div>
 </div>
+
 <div class="col-12 col-md-4" id="{{ $prefix }}student_level_wrap" @if(!$student) hidden @endif>
   <label class="form-label" for="{{ $prefix }}student_level">Level</label>
   <select name="student_level" id="{{ $prefix }}student_level" class="form-select">
