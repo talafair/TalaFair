@@ -173,6 +173,51 @@
       </div>
     @endif
 
+    {{-- Resident-facing raffle entry point. Visible before drawing starts. --}}
+    @if ($announcement->is_event && $announcement->raffle_enabled)
+      <div class="card yg-card mb-4 border-warning-subtle">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+            <div>
+              <h6 class="fw-bold mb-1"><i class="bi bi-broadcast-pin me-1 text-yg"></i>Live event raffle</h6>
+              @if ($raffleWinners->isEmpty())
+                <p class="small text-secondary mb-0">The raffle is ready. Join this page when the drawing begins.</p>
+              @else
+                <p class="small text-success mb-0">The raffle is live. {{ $raffleWinners->count() }} winner(s) have been announced.</p>
+              @endif
+            </div>
+            <span class="badge text-bg-warning"><i class="bi bi-broadcast-pin me-1"></i>Ready for the drawing</span>
+          </div>
+
+          @if ($rafflePrizes->isNotEmpty())
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              @foreach ($rafflePrizes as $prize)
+                <span class="badge text-bg-light border">{{ $prize->name }} · {{ $prize->winners_count }}/{{ $prize->quantity }}</span>
+              @endforeach
+            </div>
+          @else
+            <p class="small text-secondary mt-3 mb-0">The official is still preparing the prizes.</p>
+          @endif
+
+          @if ($raffleWinners->isNotEmpty())
+            <div class="border-top mt-3 pt-3">
+              <div class="small text-uppercase text-secondary fw-semibold mb-2">Winners announced</div>
+              <div class="list-group list-group-flush">
+                @foreach ($raffleWinners->groupBy('event_raffle_prize_id') as $prizeWinners)
+                  @foreach ($prizeWinners as $winner)
+                    <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-center gap-3">
+                      <span class="small">{{ $winner->prize->name }}</span>
+                      <strong class="small text-success"><i class="bi bi-trophy-fill me-1"></i>{{ $winner->public_name }}</strong>
+                    </div>
+                  @endforeach
+                @endforeach
+              </div>
+            </div>
+          @endif
+        </div>
+      </div>
+    @endif
+
     {{-- Official controls --}}
     @if ($announcement->is_event && auth()->user()->isOfficial())
       <div class="card yg-card">

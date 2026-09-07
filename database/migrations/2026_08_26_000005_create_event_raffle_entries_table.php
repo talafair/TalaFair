@@ -23,6 +23,7 @@ return new class extends Migration
 
             $table->unique(['announcement_id', 'user_id']);
         });
+
     }
 
     public function down(): void

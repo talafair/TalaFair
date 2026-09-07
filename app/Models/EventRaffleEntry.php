@@ -6,13 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class EventRaffleEntry extends Model
 {
-    protected $fillable = ['announcement_id', 'user_id', 'is_early', 'weight', 'selected_at'];
+    protected $fillable = [
+        'announcement_id', 'user_id', 'is_early', 'points_snapshot', 'weight', 'snapshot_at', 'selected_at',
+    ];
 
     protected function casts(): array
     {
         return [
             'is_early' => 'boolean',
+            'points_snapshot' => 'integer',
             'weight' => 'float',
+            'snapshot_at' => 'datetime',
             'selected_at' => 'datetime',
         ];
     }

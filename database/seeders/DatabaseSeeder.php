@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AnnouncementSeeder::class,
             PrizeSeeder::class,
             BadgeSeeder::class,
+            EventRaffleDemoSeeder::class,
         ]);
     }
 }

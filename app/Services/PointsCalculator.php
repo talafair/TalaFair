@@ -4,48 +4,33 @@ namespace App\Services;
 
 use App\Models\Announcement;
 
-/**
- * Attendance score for resident i at event e:
- *
- *   S(i,e) = B_e + C_e(i) + (0.10 x B_e x E(i,e))
- *
- *   B_e      base_points of the event
- *   C_e(i)   confirmation_points when the resident answered Yes, otherwise 0
- *   E(i,e)   early value: 1 when the resident scanned before the event start, otherwise 0
- */
 class PointsCalculator
 {
     public const EARLY_BONUS_RATE = 0.10;
 
     public static function score(Announcement $event, bool $preRegistered, bool $early): int
     {
-           $base         = (int) $event->base_points;
-           $confirmation = $preRegistered ? (int) $event->confirmation_points : 0;
-           $engagement   = $early ? 1 : 0;
-
-        $score = $base
-               + $confirmation
-             + (self::EARLY_BONUS_RATE * $base * $engagement);
-
-        return (int) round($score);
+        return (int) round(self::raffleWeight($event, $early));
     }
 
-    /** Human-readable breakdown, handy for the receipt shown after a scan. */
+    public static function raffleWeight(Announcement $event, bool $early): float
+    {
+        return (int) $event->base_points * ($early ? 1.10 : 1.00);
+    }
+
     public static function breakdown(Announcement $event, bool $preRegistered, bool $early): array
     {
-        $base          = (int) $event->base_points;
-        $confirmation  = $preRegistered ? (int) $event->confirmation_points : 0;
-        $engagement    = $early ? 1 : 0;
-        $bonus         = (int) round(self::EARLY_BONUS_RATE * $base * $engagement);
+        $base = (int) $event->base_points;
+        $bonus = (int) round(self::EARLY_BONUS_RATE * $base * ($early ? 1 : 0));
 
         return [
             'base'           => $base,
             'participation'  => 0,
-            'pre_registered' => $confirmation,
-            'confirmation'   => $confirmation,
-            'engagement'     => $engagement,
+            'pre_registered' => 0,
+            'confirmation'   => 0,
+            'engagement'     => $early ? 1 : 0,
             'early_bonus'    => $bonus,
-            'total'          => self::score($event, $preRegistered, $early),
+            'total'          => self::score($event, false, $early),
         ];
     }
 }

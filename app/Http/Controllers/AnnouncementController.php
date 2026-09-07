@@ -109,6 +109,12 @@ class AnnouncementController extends Controller
             'myRsvp'       => $myRsvp,
             'iAmAudience'  => $iAmAudience,
             'stats'        => $this->statistics($announcement),
+            'rafflePrizes' => $announcement->raffle_enabled
+                ? $announcement->rafflePrizes()->withCount('winners')->get()
+                : collect(),
+            'raffleWinners' => $announcement->raffle_enabled
+                ? $announcement->raffleWinners()->with('prize')->get()
+                : collect(),
             'householdMembers' => $householdMembers,
             'substitution' => $substitution,
             'assignedSubstitution' => $assignedSubstitution,
@@ -235,19 +241,29 @@ class AnnouncementController extends Controller
 
         $attending    = $announcement->rsvps()->where('status', 'attending')->count();
         $notAttending = $announcement->rsvps()->where('status', 'not_attending')->count();
-        $scanned      = $announcement->attendances()->count();
+        
+        // Separate resident and official attendance
+        $residentAttendances = $announcement->attendances()->where('user_category', 'resident');
+        $officialAttendances = $announcement->attendances()->where('user_category', 'official');
+        
+        $residentScanned = $residentAttendances->count();
+        $officialScanned = $officialAttendances->count();
+        $scanned = $residentScanned + $officialScanned;
+        
         $early        = $announcement->attendances()->where('is_early', true)->count();
 
         return [
-            'audience'        => $audience,
-            'attending'       => $attending,
-            'not_attending'   => $notAttending,
-            'no_response'     => max(0, $audience - $attending - $notAttending),
-            'scanned'         => $scanned,
-            'early'           => $early,
-            'on_time'         => $scanned - $early,
-            'turnout_rate'    => $attending > 0 ? round($scanned / $attending * 100, 1) : 0.0,
-            'reasons'         => $announcement->rsvps()
+            'audience'          => $audience,
+            'attending'         => $attending,
+            'not_attending'     => $notAttending,
+            'no_response'       => max(0, $audience - $attending - $notAttending),
+            'scanned'           => $scanned,
+            'resident_scanned'  => $residentScanned,
+            'official_scanned'  => $officialScanned,
+            'early'             => $early,
+            'on_time'           => $scanned - $early,
+            'turnout_rate'      => $attending > 0 ? round($residentScanned / $attending * 100, 1) : 0.0,
+            'reasons'           => $announcement->rsvps()
                                     ->where('status', 'not_attending')
                                     ->whereNotNull('reason')
                                     ->latest('responded_at')
@@ -268,34 +284,13 @@ class AnnouncementController extends Controller
                                 ->when($userName !== '', fn ($query) => $query->whereHas('user', fn ($userQuery) => $userQuery->where('name', 'like', '%' . $userName . '%')))
                                 ->orderBy('scanned_at')
                                 ->get(),
+            'raffleAttendees' => $announcement->raffle_enabled
+                                ? $announcement->attendances()->with('user')->orderBy('scanned_at')->get()
+                                : collect(),
             'userName'     => $userName,
-            'raffleEntries' => $announcement->raffleEntries()->with('user')->orderByDesc('weight')->orderBy('created_at')->get(),
+            'rafflePrizes' => $announcement->rafflePrizes()->withCount('winners')->with('winners')->get(),
+            'raffleWinners' => $announcement->raffleWinners()->with('prize')->get(),
         ]);
-    }
-
-    public function drawRaffle(Announcement $announcement): RedirectResponse
-    {
-        abort_unless($announcement->is_event && $announcement->raffle_enabled, 422);
-
-        $entries = $announcement->raffleEntries()->whereNull('selected_at')->get();
-        if ($entries->isEmpty()) {
-            return back()->with('error', 'There are no eligible raffle entries yet.');
-        }
-
-        $total = (int) round($entries->sum('weight') * 100);
-        $pick = random_int(1, max(1, $total));
-        $running = 0;
-        $winner = $entries->last();
-        foreach ($entries as $entry) {
-            $running += (int) round($entry->weight * 100);
-            if ($pick <= $running) {
-                $winner = $entry;
-                break;
-            }
-        }
-        $winner->update(['selected_at' => now()]);
-
-        return back()->with('success', "Raffle winner: {$winner->user->full_name}.");
     }
 
     /* ------------------------------------------------------------------

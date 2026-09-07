@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppearanceController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\EventRaffleController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AuditLogController;
@@ -96,6 +97,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/announcements/{announcement}',            [AnnouncementController::class, 'show'])->name('announcements.show');
     Route::get('/announcements/{announcement}/scan',       [AttendanceController::class, 'scanner'])->name('announcements.scan');
     Route::get('/announcements/{announcement}/statistics', [AnnouncementController::class, 'statisticsPage'])->name('announcements.statistics');
+    Route::get('/announcements/{announcement}/raffle/live', [EventRaffleController::class, 'live'])->name('announcements.raffle.live');
+    Route::get('/announcements/{announcement}/raffle/state', [EventRaffleController::class, 'state'])->name('announcements.raffle.state');
     Route::post('/announcements/{announcement}/rsvp',      [RsvpController::class, 'store'])->name('announcements.rsvp');
 
     /*
@@ -142,7 +145,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/manage/announcements/{announcement}/participation', [AttendanceController::class, 'recordParticipation'])->name('announcements.participation');
         Route::patch('/manage/announcements/{announcement}/extend', [AnnouncementController::class, 'extendSurvey'])->name('announcements.extend');
         Route::post('/manage/announcements/{announcement}/remind',  [AnnouncementController::class, 'remind'])->name('announcements.remind');
-        Route::post('/manage/announcements/{announcement}/raffle/draw', [AnnouncementController::class, 'drawRaffle'])->name('announcements.raffle.draw');
+        Route::post('/manage/announcements/{announcement}/raffle/prizes', [EventRaffleController::class, 'storePrize'])->name('announcements.raffle.prizes.store');
+        Route::put('/manage/announcements/{announcement}/raffle/prizes/{prize}', [EventRaffleController::class, 'updatePrize'])->name('announcements.raffle.prizes.update');
+        Route::delete('/manage/announcements/{announcement}/raffle/prizes/{prize}', [EventRaffleController::class, 'destroyPrize'])->name('announcements.raffle.prizes.destroy');
+        Route::post('/manage/announcements/{announcement}/raffle/prizes/{prize}/draw', [EventRaffleController::class, 'draw'])->name('announcements.raffle.draw');
 
         /* Badges */
         Route::get('/manage/badges',            [BadgeController::class, 'index'])->name('badges.index');

@@ -6,25 +6,62 @@
 <div class="row justify-content-center">
   <div class="col-12 col-sm-10 col-md-7 col-lg-5">
 
-    <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>{{ $activityMode ? 'Scan activity participants' : ($officialMode ? 'Scan resident attendance' : 'Scan for attendance') }}</h4>
-    <p class="text-secondary">
-      Point your camera at the {{ $activityMode ? 'resident ID QR after each activity' : ($officialMode ? 'resident ID QR' : 'event QR') }}.
-      Scanning opens two hours before the event starts and only works inside the venue.
-    </p>
+    @if ($activityMode)
+      <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>Scan activity participants</h4>
+      <p class="text-secondary">
+        Point your camera at the resident ID QR after each activity.
+        Scanning opens two hours before the event starts and only works inside the venue.
+      </p>
+    @elseif ($officialMode)
+      <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>Attendance Options</h4>
+      <p class="text-secondary">
+        Record your own attendance or document resident attendance at events.
+        Scanning opens two hours before the event starts and only works inside the venue.
+      </p>
+
+      {{-- Tab selection for officials --}}
+      <div class="btn-group w-100 mb-3" role="tablist">
+        <input type="radio" class="btn-check" name="attendance-mode" id="mode-own" value="own" checked>
+        <label class="btn btn-outline-dark" for="mode-own">My Attendance</label>
+
+        <input type="radio" class="btn-check" name="attendance-mode" id="mode-resident" value="resident">
+        <label class="btn btn-outline-dark" for="mode-resident">Record Resident</label>
+      </div>
+
+      {{-- Event selection for official's own attendance --}}
+      <div id="own-attendance-mode" class="mb-3">
+        <label for="own-event-select" class="form-label small fw-semibold mb-1">Select your event</label>
+        <select id="own-event-select" class="form-select form-select-sm" @disabled($openEvents->isEmpty())>
+          <option value="">Select an event</option>
+          @foreach ($openEvents as $event)
+            <option value="{{ $event->id }}">{{ $event->title }} · {{ $event->event_start_at->format('M j, g:i A') }}</option>
+          @endforeach
+        </select>
+      </div>
+
+      {{-- Event selection for recording resident attendance --}}
+      <div id="resident-attendance-mode" class="mb-3 d-none">
+        <label for="resident-event-select" class="form-label small fw-semibold mb-1">Select resident's event</label>
+        <select id="resident-event-select" class="form-select form-select-sm" @disabled($openEvents->isEmpty())>
+          <option value="">Select an event</option>
+          @foreach ($openEvents as $event)
+            <option value="{{ $event->id }}">{{ $event->title }} · {{ $event->event_start_at->format('M j, g:i A') }}</option>
+          @endforeach
+        </select>
+      </div>
+    @else
+      <h4 class="fw-bold mb-1"><i class="bi bi-qr-code-scan me-2 text-yg"></i>Scan for attendance</h4>
+      <p class="text-secondary">
+        Point your camera at the event QR.
+        Scanning opens two hours before the event starts and only works inside the venue.
+      </p>
+    @endif
 
     @if ($announcement)
       <div class="alert alert-light border">
         <strong>{{ $announcement->title }}</strong>
         <div class="small text-secondary">{{ $announcement->event_start_at?->format('M j, Y g:i A') }}</div>
       </div>
-    @elseif ($officialMode)
-      <label for="event-select" class="form-label small fw-semibold mb-1">Event to record attendance for</label>
-      <select id="event-select" class="form-select form-select-sm mb-3" @disabled($openEvents->isEmpty())>
-        <option value="">Select an event</option>
-        @foreach ($openEvents as $event)
-          <option value="{{ $event->id }}">{{ $event->title }} · {{ $event->event_start_at->format('M j, g:i A') }}</option>
-        @endforeach
-      </select>
     @endif
 
     @if ($openEvents->isEmpty())
@@ -67,7 +104,7 @@
       <button id="manual-toggle" type="button" class="btn btn-outline-dark w-100 mt-3">
         <i class="bi bi-keyboard me-1"></i>QR code not scanning? Enter Resident Unique ID instead
       </button>
-      <div class="form-text mt-2">You can keep trying the QR scanner as many times as needed, or use the manual Unique ID option.</div>
+      <div class="form-text mt-2">You can keep trying the QR scanner as many times as needed, or use the manual Unique ID option (resident mode only).</div>
       <form id="manual-form" class="border rounded-3 p-3 mt-3 d-none">
         <label for="unique-id" class="form-label fw-semibold">Resident Unique ID Number</label>
         <div class="input-group">
@@ -116,10 +153,57 @@
   const manualForm = document.getElementById('manual-form');
   const manualToggle = document.getElementById('manual-toggle');
   const manualBack = document.getElementById('manual-back');
+
+  // For official mode
+  const ownAttendanceMode = document.getElementById('own-attendance-mode');
+  const residentAttendanceMode = document.getElementById('resident-attendance-mode');
+  const ownEventSelect = document.getElementById('own-event-select');
+  const residentEventSelect = document.getElementById('resident-event-select');
+  const modeOwnRadio = document.getElementById('mode-own');
+  const modeResidentRadio = document.getElementById('mode-resident');
+  
+  // Legacy support for single event select
   const eventSelect = document.getElementById('event-select');
 
   let scanner = null, busy = false, completed = false, scannerPaused = false, scannerRunning = false;
   let selectedAnnouncementId = ANNOUNCEMENT_ID;
+  let officialMode = OFFICIAL; // 'own' for official's own attendance, 'resident' for recording resident
+  let currentAttendanceMode = OFFICIAL ? 'own' : null;
+
+  // Handle official mode switching
+  if (OFFICIAL && !ACTIVITY) {
+    modeOwnRadio?.addEventListener('change', () => {
+      currentAttendanceMode = 'own';
+      ownAttendanceMode?.classList.remove('d-none');
+      residentAttendanceMode?.classList.add('d-none');
+      manualForm?.classList.add('d-none');
+      manualToggle?.classList.remove('d-none');
+      if (scanner) scanner.stop().catch(() => {});
+      stopBtn.classList.add('d-none');
+      startBtn.classList.remove('d-none');
+      resultBox.classList.add('d-none');
+    });
+
+    modeResidentRadio?.addEventListener('change', () => {
+      currentAttendanceMode = 'resident';
+      ownAttendanceMode?.classList.add('d-none');
+      residentAttendanceMode?.classList.remove('d-none');
+      manualForm?.classList.add('d-none');
+      manualToggle?.classList.remove('d-none');
+      if (scanner) scanner.stop().catch(() => {});
+      stopBtn.classList.add('d-none');
+      startBtn.classList.remove('d-none');
+      resultBox.classList.add('d-none');
+    });
+
+    ownEventSelect?.addEventListener('change', () => {
+      selectedAnnouncementId = ownEventSelect.value || null;
+    });
+
+    residentEventSelect?.addEventListener('change', () => {
+      selectedAnnouncementId = residentEventSelect.value || null;
+    });
+  }
 
   eventSelect?.addEventListener('change', () => {
     selectedAnnouncementId = eventSelect.value || null;
@@ -183,7 +267,6 @@
           '<ul class="small mb-0 ps-3">' +
             '<li>Event: ' + data.event + '</li>' +
             '<li>Base points: ' + data.breakdown.base + '</li>' +
-            '<li>Confirmation points: +' + data.breakdown.confirmation + '</li>' +
             '<li>Engagement bonus: +' + data.breakdown.early_bonus + '</li>' +
             '<li class="fw-semibold">Total: ' + data.breakdown.total + '</li>' +
           '</ul>');
@@ -215,7 +298,7 @@
 
   manualForm?.addEventListener('submit', async function (event) {
     event.preventDefault();
-    if (completed || busy) return;
+    if (completed || busy || currentAttendanceMode !== 'resident') return;
     busy = true;
     try {
       const uniqueId = document.getElementById('unique-id');
@@ -239,7 +322,6 @@
         message: 'The attendance service is temporarily unavailable. Please try again.'
       }));
       if (data.ok) {
-        completed = !OFFICIAL;
         uniqueId.value = '';
         show(true, '<div class="fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Attendance recorded successfully.</div><div class="small mt-1">' + data.resident + ' · ' + data.message + '</div>');
       } else {
@@ -253,6 +335,11 @@
   });
 
   manualToggle?.addEventListener('click', () => {
+    // Only show manual form in resident mode for officials
+    if (OFFICIAL && currentAttendanceMode !== 'resident') {
+      show(false, 'Switch to "Record Resident" mode to use manual ID entry.');
+      return;
+    }
     manualForm?.classList.remove('d-none');
     manualToggle.classList.add('d-none');
     if (scanner) scanner.stop().catch(() => {});
@@ -267,11 +354,17 @@
 
   startBtn.addEventListener('click', async function () {
     if (completed) return;
+    
+    // Check that an event is selected
+    let eventSelect = OFFICIAL ? (currentAttendanceMode === 'own' ? ownEventSelect : residentEventSelect) : eventSelect;
     if (OFFICIAL && !selectedAnnouncementId) {
-      show(false, 'Select an event before starting the official attendance scanner.');
+      show(false, currentAttendanceMode === 'own' 
+        ? 'Select your event before starting the scanner.'
+        : 'Select the resident\'s event before starting the scanner.');
       eventSelect?.focus();
       return;
     }
+    
     scanner = scanner || new Html5Qrcode('reader');
     try {
       status('Starting camera…', 'info');
@@ -292,7 +385,12 @@
         () => {}
       );
       scannerRunning = true;
-      status('Scanning for a QR code…', 'info');
+      const scanMessage = OFFICIAL 
+        ? (currentAttendanceMode === 'own' 
+          ? 'Scanning for the event QR code…' 
+          : 'Scanning for the resident QR code or event QR…')
+        : 'Scanning for a QR code…';
+      status(scanMessage, 'info');
       startBtn.classList.add('d-none');
       stopBtn.classList.remove('d-none');
       document.getElementById('permission-help')?.classList.add('d-none');
@@ -300,10 +398,11 @@
       const cameraMessage = e.message.includes('location')
         ? e.message + ' Allow location access, then press Open camera again.'
         : 'Camera access was denied or could not start. Allow camera access in your browser settings, then try again. On a phone this page must be served over HTTPS.';
-      show(false, OFFICIAL && manualToggle
+      const fallbackMsg = OFFICIAL && manualToggle && currentAttendanceMode === 'resident'
         ? cameraMessage + '<div class="small fw-semibold mt-2">Use the Resident Unique ID Number fallback below if scanning is unavailable.</div>'
-        : cameraMessage);
-      if (OFFICIAL && manualForm && manualToggle) {
+        : cameraMessage;
+      show(false, fallbackMsg);
+      if (OFFICIAL && manualForm && manualToggle && currentAttendanceMode === 'resident') {
         manualForm.classList.remove('d-none');
         manualToggle.classList.add('d-none');
       }

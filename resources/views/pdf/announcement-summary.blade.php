@@ -37,23 +37,23 @@
                 'Confirmed yes' => $stats['attending'],
                 'Said no' => $stats['not_attending'],
                 'No response' => $stats['no_response'],
-                'Checked in' => $stats['scanned'],
-                'Early check-ins' => $stats['early'],
+                'Residents present' => $stats['resident_scanned'],
+                'Officials present' => $stats['official_scanned'],
             ] as $label => $value)
                 <td><div class="number">{{ number_format($value) }}</div><div class="label">{{ $label }}</div></td>
             @endforeach
         </tr>
     </table>
-    <p><strong>Turnout against confirmations:</strong> {{ $stats['turnout_rate'] }}%</p>
+    <p><strong>Total checked in:</strong> {{ $stats['scanned'] }} | <strong>Early check-ins:</strong> {{ $stats['early'] }} | <strong>Turnout against confirmations:</strong> {{ $stats['turnout_rate'] }}%</p>
 
     <h2>Check-in log</h2>
     <table class="data">
-        <thead><tr><th>Resident</th><th>Unique ID</th><th>Checked in at</th><th>Type</th><th class="right">Points</th></tr></thead>
+        <thead><tr><th>Name</th><th>ID</th><th>Category</th><th>Checked in at</th><th>Type</th><th class="right">Points</th></tr></thead>
         <tbody>
         @forelse ($attendees as $attendance)
-            <tr><td>{{ $attendance->user->full_name }}</td><td>{{ $attendance->user->unique_id }}</td><td>{{ $attendance->scanned_at->format('Y-m-d g:i A') }}</td><td>{{ $attendance->is_early ? 'Early' : 'On time' }}</td><td class="right">{{ $attendance->points_awarded }}</td></tr>
+            <tr><td>{{ $attendance->user->full_name }}</td><td>{{ $attendance->user->unique_id }}</td><td>{{ ucfirst($attendance->user_category) }}</td><td>{{ $attendance->scanned_at->format('Y-m-d g:i A') }}</td><td>{{ $attendance->is_early ? 'Early' : 'On time' }}</td><td class="right">{{ $attendance->points_awarded }}</td></tr>
         @empty
-            <tr><td colspan="5">No one has checked in yet.</td></tr>
+            <tr><td colspan="6">No one has checked in yet.</td></tr>
         @endforelse
         </tbody>
     </table>

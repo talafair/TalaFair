@@ -57,6 +57,13 @@ class AttendanceController extends Controller
     /**
      * Called by the camera page once a QR is decoded.
      * Expects: token, latitude, longitude, accuracy
+     *
+     * Flow:
+     * 1. If token is an Event QR:
+     *    - Official: Record official's own attendance
+     *    - Resident/Guest: Record their own attendance
+     * 2. If token is a Resident QR (only for officials):
+     *    - Record the scanned resident's attendance
      */
     public function check(Request $request): JsonResponse
     {
@@ -78,6 +85,7 @@ class AttendanceController extends Controller
         // The QR may hold the full URL — pull the token out of it.
         $token = trim(basename(parse_url($data['token'], PHP_URL_PATH) ?: $data['token']));
 
+        // Try to look up as an Event QR
         $event = Announcement::events()->where('qr_token', $token)->first();
 
         if ($data['announcement_id'] ?? null) {
@@ -127,18 +135,30 @@ class AttendanceController extends Controller
 
         /** @var User $user */
         $user = Auth::user();
-        $attendee = $user;
 
+        // Determine who is attending
+        $attendee = $user;
+        $attendanceMethod = 'event_qr_scan';
+        $userCategory = $user->role === 'official' ? 'official' : 'resident';
+
+        // If official, check if they're trying to record a resident's attendance
+        // by attempting to parse the token as a resident QR
         if ($user->isOfficial()) {
-            $attendee = $this->residentFromQr($data['token']);
-            if ($attendee instanceof JsonResponse) return $attendee;
+            $residentResult = $this->tryParseResidentQr($data['token']);
+            if ($residentResult instanceof User) {
+                // Token is a resident QR - record the resident's attendance
+                $attendee = $residentResult;
+                $attendanceMethod = 'official_qr_scan';
+                $userCategory = 'resident';
+            }
+            // else: Token is an event QR, so record the official's own attendance
         }
 
         if (! $this->canAttendEvent($attendee, $event)) {
             return $this->fail('You are not eligible to attend this event.');
         }
 
-        return $this->recordAttendance($event, $attendee, $data, $distance);
+        return $this->recordAttendance($event, $attendee, $data, $distance, $userCategory, $attendanceMethod);
     }
 
     /** Officials can use the resident's printed unique ID through the same attendance flow. */
@@ -191,7 +211,7 @@ class AttendanceController extends Controller
             ));
         }
 
-        return $this->recordAttendance($event, $attendee, $data, $distance);
+        return $this->recordAttendance($event, $attendee, $data, $distance, 'resident', 'manual_unique_id');
     }
 
     public function recordParticipation(Request $request, Announcement $announcement): JsonResponse
@@ -255,24 +275,29 @@ class AttendanceController extends Controller
         ]);
     }
 
-    private function recordAttendance(Announcement $event, User $attendee, array $data, float $distance): JsonResponse
+    private function recordAttendance(Announcement $event, User $attendee, array $data, float $distance, string $userCategory = 'resident', string $attendanceMethod = 'event_qr_scan'): JsonResponse
     {
         $early = $event->isEarlyScan();
         $preRegistered = $event->rsvps()->where('user_id', $attendee->id)->where('status', 'attending')->exists();
-        $breakdown = PointsCalculator::breakdown($event, $preRegistered, $early);
+        
+        // Officials do not earn points from attendance
+        $breakdown = $userCategory === 'official' ? ['total' => 0, 'base' => 0, 'confirmation' => 0, 'early_bonus' => 0, 'participation' => 0, 'pre_registered' => 0, 'engagement' => 0] : PointsCalculator::breakdown($event, $preRegistered, $early);
         $attendancePosition = null;
 
         try {
-            DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown, &$attendancePosition) {
+            DB::transaction(function () use ($event, $attendee, $data, $distance, $early, $preRegistered, $breakdown, $userCategory, $attendanceMethod, &$attendancePosition) {
             $lockedEvent = Announcement::query()->lockForUpdate()->findOrFail($event->id);
             if ($lockedEvent->attendances()->where('user_id', $attendee->id)->exists()) {
-                throw new \DomainException('This resident has already been recorded for this event.');
+                $categoryLabel = $userCategory === 'official' ? 'official' : 'resident';
+                throw new \DomainException("This resident has already been recorded for this event.");
             }
 
             $attendancePosition = $lockedEvent->attendances()->count() + 1;
             Attendance::create([
                 'announcement_id' => $lockedEvent->id,
                 'user_id' => $attendee->id,
+                'user_category' => $userCategory,
+                'attendance_method' => $attendanceMethod,
                 'scanned_at' => now(),
                 'is_early' => $early,
                 'pre_registered' => $preRegistered,
@@ -281,19 +306,35 @@ class AttendanceController extends Controller
                 'distance_m' => (int) round($distance),
                 'points_awarded' => $breakdown['total'],
             ]);
-            $attendee->increment('points', $breakdown['total']);
-            RaffleService::ensureEntry($attendee);
+            
+            // Residents receive account points; every successful attendee may enter the event raffle.
+            if ($userCategory === 'resident') {
+                $attendee->increment('points', $breakdown['total']);
+                RaffleService::ensureEntry($attendee);
+                $attendee->refresh();
+                BadgeService::awardEligible($attendee, $lockedEvent, $attendancePosition);
+            }
             if ($lockedEvent->raffle_enabled) {
                 EventRaffleEntry::firstOrCreate(
                     ['announcement_id' => $lockedEvent->id, 'user_id' => $attendee->id],
-                    ['is_early' => $early, 'weight' => $early ? 1.10 : 1.00]
+                    [
+                        'is_early' => $early,
+                        'points_snapshot' => (int) $lockedEvent->base_points,
+                        'weight' => RaffleService::weight((int) $lockedEvent->base_points, $early),
+                    ]
                 );
             }
-            $attendee->refresh();
-            BadgeService::awardEligible($attendee, $lockedEvent, $attendancePosition);
             });
         } catch (\DomainException $exception) {
             return $this->fail($exception->getMessage());
+        }
+
+        // Build response message
+        $message = "Attendance recorded successfully.";
+        if ($userCategory === 'resident') {
+            $message = $early
+                ? "Attendance recorded successfully. Checked in early and earned +{$breakdown['total']} points, including the 10% early bonus."
+                : "Attendance recorded successfully. You earned +{$breakdown['total']} points.";
         }
 
         return response()->json([
@@ -303,10 +344,24 @@ class AttendanceController extends Controller
             'resident' => $attendee->full_name,
             'early' => $early,
             'breakdown' => $breakdown,
-            'message' => $early
-                ? "Attendance recorded successfully. Checked in early and earned +{$breakdown['total']} points, including the 10% early bonus."
-                : "Attendance recorded successfully. You earned +{$breakdown['total']} points.",
+            'message' => $message,
         ]);
+    }
+
+    private function tryParseResidentQr(string $value): User|null
+    {
+        $payload = json_decode($value, true);
+        $id = is_array($payload) ? ($payload['id'] ?? null) : null;
+        $signature = is_array($payload) ? ($payload['sig'] ?? null) : null;
+
+        if (! is_string($id) || ! is_string($signature) || ! hash_equals(
+            substr(hash_hmac('sha256', $id, config('app.key')), 0, 16),
+            $signature
+        )) {
+            return null;
+        }
+
+        return User::where('unique_id', $id)->where('role', 'resident')->first();
     }
 
     private function residentFromQr(string $value): User|JsonResponse

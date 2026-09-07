@@ -186,6 +186,16 @@ class Announcement extends Model
         return $this->hasMany(EventRaffleEntry::class);
     }
 
+    public function rafflePrizes()
+    {
+        return $this->hasMany(EventRafflePrize::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function raffleWinners()
+    {
+        return $this->hasMany(EventRaffleWinner::class)->latest('drawn_at');
+    }
+
     public function participations()
     {
         return $this->hasMany(AnnouncementParticipation::class);

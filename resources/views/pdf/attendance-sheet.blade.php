@@ -52,13 +52,13 @@
     </table>
 
     <table class="data">
-        <thead><tr><th class="number">NO.</th><th class="name">NAME</th><th class="zone">ZONE</th><th class="check-in">CHECK IN</th><th class="signature">SIGNATURE</th></tr></thead>
+        <thead><tr><th class="number">NO.</th><th class="name">NAME / CATEGORY</th><th class="zone">ZONE</th><th class="check-in">CHECK IN</th><th class="signature">SIGNATURE</th></tr></thead>
         <tbody>
         @for ($index = 0; $index < max(10, $attendees->count()); $index++)
             @php($attendance = $attendees->get($index))
             <tr>
                 <td class="number">{{ $index + 1 }}</td>
-                <td>{{ $attendance?->user?->full_name }}</td>
+                <td>{{ $attendance?->user?->full_name }}{{ $attendance ? ' (' . ucfirst($attendance->user_category) . ')' : '' }}</td>
                 <td>{{ $attendance?->user?->zone ? 'Zone ' . $attendance->user->zone : '' }}</td>
                 <td>{{ $attendance?->scanned_at?->format('g:i A') }}</td>
                 <td></td>

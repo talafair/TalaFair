@@ -85,12 +85,6 @@
                value="{{ old('base_points', $a?->base_points ?? 50) }}">
         <div class="form-text">Points awarded for successfully attending the event. Early scanners receive an additional 10%.</div>
       </div>
-      <div class="col-md-6" id="confirmation_points_wrap{{ $sfx }}">
-        <label class="form-label" for="confirmation_points{{ $sfx }}">Additional Points for Confirming Attendance</label>
-        <input type="number" name="confirmation_points" id="confirmation_points{{ $sfx }}" min="0" class="form-control"
-               value="{{ old('confirmation_points', $a?->confirmation_points ?? 0) }}">
-        <div class="form-text">Extra points awarded only when a resident answers Yes and successfully attends.</div>
-      </div>
       <div class="col-md-6 d-none" id="participation_points_wrap{{ $sfx }}">
         <label class="form-label" for="participation_points{{ $sfx }}">Participation weight</label>
         <input type="number" name="participation_points" id="participation_points{{ $sfx }}" min="0" class="form-control"
@@ -138,7 +132,6 @@
   const category = document.getElementById('annCategory{{ $sfx }}');
   const baseWrap = document.getElementById('base_points_wrap{{ $sfx }}');
   const activityWrap = document.getElementById('participation_points_wrap{{ $sfx }}');
-  const confirmationWrap = document.getElementById('confirmation_points_wrap{{ $sfx }}');
   const baseInput = document.getElementById('base_points{{ $sfx }}');
   const activityInput = document.getElementById('participation_points{{ $sfx }}');
   const eventToggle = document.getElementById('is_event{{ $sfx }}');
@@ -150,7 +143,6 @@
     const isEvent = eventToggle.checked;
     eventFields.hidden = !isEvent;
     baseWrap.classList.toggle('d-none', isActivity);
-    confirmationWrap.classList.toggle('d-none', isActivity);
     activityWrap.classList.toggle('d-none', !isActivity);
     document.getElementById('activity_notice{{ $sfx }}').classList.toggle('d-none', !isActivity);
     baseInput.required = isEvent && !isActivity;

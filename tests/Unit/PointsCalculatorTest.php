@@ -28,9 +28,9 @@ class PointsCalculatorTest extends TestCase
     {
         return [
             'no participation or engagement' => [false, false, 50],
-            'confirmed attendance only' => [true, false, 70],
+            'confirmed attendance only' => [true, false, 50],
             'engagement only' => [false, true, 55],
-            'confirmed early attendance' => [true, true, 75],
+            'confirmed early attendance' => [true, true, 55],
         ];
     }
 }
