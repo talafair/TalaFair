@@ -82,13 +82,34 @@
     <hr class="my-4">
     <label class="form-label fw-semibold">Event Facilitators / Assigned Personnel <span class="text-secondary fw-normal">(optional)</span></label>
     <div class="form-text mb-2">Assign verified officials or authorized personnel who may record their attendance through this event QR code.</div>
-    <select name="facilitator_ids[]" class="form-select" multiple size="4">
-      @foreach (($facilitators ?? collect()) as $facilitator)
-        <option value="{{ $facilitator->id }}" @selected(in_array($facilitator->id, $assignedFacilitatorIds))>
-          {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
-        </option>
-      @endforeach
-    </select>
+    <div class="row g-2 align-items-center" data-facilitator-picker="{{ $sfx }}">
+      <div class="col-md-5">
+        <label class="form-label small text-secondary mb-1" for="facilitator-available{{ $sfx }}">Available users</label>
+        <select id="facilitator-available{{ $sfx }}" class="form-select" multiple size="5">
+          @foreach (($facilitators ?? collect()) as $facilitator)
+            @unless (in_array($facilitator->id, $assignedFacilitatorIds))
+              <option value="{{ $facilitator->id }}">
+                {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
+              </option>
+            @endunless
+          @endforeach
+        </select>
+        <button type="button" class="btn btn-primary btn-sm mt-2 js-add-facilitator" title="Add selected facilitators"><i class="bi bi-plus-lg me-1"></i>Add to Facilitate</button>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small text-secondary mb-1" for="facilitator-assigned{{ $sfx }}">Assigned facilitators</label>
+        <select id="facilitator-assigned{{ $sfx }}" name="facilitator_ids[]" class="form-select" multiple size="5">
+          @foreach (($facilitators ?? collect()) as $facilitator)
+            @if (in_array($facilitator->id, $assignedFacilitatorIds))
+              <option value="{{ $facilitator->id }}" selected>
+                {{ $facilitator->full_name }}{{ $facilitator->official_position ? ' - ' . ucfirst(str_replace('_', ' ', $facilitator->official_position)) : '' }}
+              </option>
+            @endif
+          @endforeach
+        </select>
+        <button type="button" class="btn btn-danger btn-sm mt-2 js-remove-facilitator" title="Remove selected facilitators"><i class="bi bi-dash-lg me-1"></i>Remove as Facilitator</button>
+      </div>
+    </div>
     @if (($facilitators ?? collect())->isEmpty())
       <div class="small text-secondary mt-2">No verified officials or personnel are available to assign yet.</div>
     @endif
@@ -169,5 +190,20 @@
   category.addEventListener('change', togglePoints);
   eventToggle.addEventListener('change', togglePoints);
   togglePoints();
+
+  const picker = document.querySelector('[data-facilitator-picker="{{ $sfx }}"]');
+  const available = document.getElementById('facilitator-available{{ $sfx }}');
+  const assigned = document.getElementById('facilitator-assigned{{ $sfx }}');
+
+  function moveSelected(from, to) {
+    Array.from(from.selectedOptions).forEach(option => {
+      option.selected = false;
+      to.appendChild(option);
+    });
+    Array.from(to.options).forEach(option => option.selected = true);
+  }
+
+  picker?.querySelector('.js-add-facilitator')?.addEventListener('click', () => moveSelected(available, assigned));
+  picker?.querySelector('.js-remove-facilitator')?.addEventListener('click', () => moveSelected(assigned, available));
 })();
 </script>

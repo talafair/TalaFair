@@ -78,10 +78,11 @@ class AnnouncementCreationTest extends TestCase
     {
         $official = $this->official();
         $facilitator = $this->official('event.personnel');
+        $secondFacilitator = $this->official('event.personnel.second');
 
         $this->actingAs($official)->post(route('announcements.store'), [
             ...$this->eventPayload(),
-            'facilitator_ids' => [$facilitator->id, $facilitator->id],
+            'facilitator_ids' => [$facilitator->id, $facilitator->id, $secondFacilitator->id],
         ])->assertRedirect();
 
         $event = Announcement::query()->latest('id')->firstOrFail();
@@ -90,9 +91,14 @@ class AnnouncementCreationTest extends TestCase
             'user_id' => $facilitator->id,
             'assigned_by' => $official->id,
         ]);
-        $this->assertSame(1, EventFacilitator::where('announcement_id', $event->id)->count());
+        $this->assertSame(2, EventFacilitator::where('announcement_id', $event->id)->count());
         $this->assertDatabaseHas('user_notifications', [
             'user_id' => $facilitator->id,
+            'announcement_id' => $event->id,
+            'title' => 'Event facilitator assignment',
+        ]);
+        $this->assertDatabaseHas('user_notifications', [
+            'user_id' => $secondFacilitator->id,
             'announcement_id' => $event->id,
             'title' => 'Event facilitator assignment',
         ]);
