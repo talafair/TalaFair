@@ -72,33 +72,40 @@
           <a href="{{ url('/') }}" class="d-block mt-2 fw-semibold">Back to home</a>
         </div>
       </div>
-    @elseif (! $officialMode)
-      <ul class="list-group mb-3">
-        @foreach ($openEvents as $event)
-          <li class="list-group-item">
-            <div class="fw-semibold">{{ $event->title }}</div>
-            <div class="small text-secondary">
-              {{ $event->event_start_at->format('M j, g:i A') }} &middot;
-              {{ $event->venue_name ?: 'Barangay San Jose' }}
-            </div>
-          </li>
-        @endforeach
-      </ul>
+    @elseif (! $officialMode && ! $activityMode)
+      <div class="mb-3">
+        <label for="event-select" class="form-label small fw-semibold mb-1">Select an event to scan</label>
+        <select id="event-select" class="form-select" @disabled($openEvents->isEmpty())>
+          <option value="">Select an event</option>
+          @foreach ($openEvents as $event)
+            <option value="{{ $event->id }}">
+              {{ $event->title }} - {{ $event->event_start_at->format('M j, g:i A') }} - {{ $event->venue_name ?: 'Barangay San Jose' }}
+            </option>
+          @endforeach
+        </select>
+      </div>
     @endif
 
-    <div id="reader" class="position-relative rounded-3 overflow-hidden bg-dark mx-auto" style="width: min(100%, 280px); aspect-ratio: 1 / 1;">
-      <button id="start-btn" class="btn btn-primary fw-semibold position-absolute top-50 start-50 translate-middle z-1 shadow">
-        <i class="bi bi-camera me-1"></i>Open camera
-      </button>
-      <button id="stop-btn" class="btn btn-outline-secondary fw-semibold position-absolute top-50 start-50 translate-middle z-1 shadow d-none">Stop</button>
-    </div>
+    @if (! $openEvents->isEmpty() || $announcement)
+      <div id="scanner-placeholder" class="text-center text-secondary px-4 mb-2">
+        Select an event and tap "Open camera" to scan the event QR code.
+      </div>
+      <div id="reader" class="position-relative rounded-3 overflow-hidden mx-auto border" style="width: min(100%, 320px); aspect-ratio: 1 / 1;">
+      </div>
+        <div class="text-center mt-3">
+          <button id="start-btn" @disabled($openEvents->isEmpty() || (!$officialMode && !$activityMode)) class="btn btn-primary fw-semibold">
+            <i class="bi bi-camera me-1"></i>Open camera
+          </button>
+          <button id="stop-btn" class="btn btn-outline-secondary fw-semibold d-none">Close camera</button>
+        </div>
 
-    <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
+      <div id="result" class="alert d-none mt-3 rounded-3" role="alert"></div>
 
-    <div id="permission-help" class="alert alert-light border mt-3">
-      <div class="fw-semibold"><i class="bi bi-shield-check me-1 text-yg"></i>Camera and location permission required</div>
-      <div class="small text-secondary mt-1">Allow camera access to read the QR code and location access so TalaFair can confirm you are at the venue. Nothing starts until you choose Open camera.</div>
-    </div>
+      <div id="permission-help" class="alert alert-light border mt-3">
+        <div class="fw-semibold"><i class="bi bi-shield-check me-1 text-yg"></i>Camera and location permission required</div>
+        <div class="small text-secondary mt-1">Allow camera access to read the QR code and location access so TalaFair can confirm you are at the venue. Nothing starts until you choose Open camera.</div>
+      </div>
+    @endif
 
     @if ($officialMode && ! $activityMode)
       <button id="manual-toggle" type="button" class="btn btn-outline-dark w-100 mt-3">
@@ -124,9 +131,11 @@
       </div>
     @endif
 
-    <p id="gps-status" class="form-text mt-2">
-      <i class="bi bi-geo-alt me-1"></i>Location is not shared yet.
-    </p>
+    @if (! $openEvents->isEmpty() || $announcement)
+      <p id="gps-status" class="form-text mt-2">
+        <i class="bi bi-geo-alt me-1"></i>Location is not shared yet.
+      </p>
+    @endif
 
     <a href="{{ route('attendance.history') }}" class="btn btn-link btn-sm px-0">
       <i class="bi bi-clock-history me-1"></i>My attendance history
@@ -150,6 +159,7 @@
   const gpsStatus = document.getElementById('gps-status');
   const startBtn  = document.getElementById('start-btn');
   const stopBtn   = document.getElementById('stop-btn');
+  const scannerPlaceholder = document.getElementById('scanner-placeholder');
   const manualForm = document.getElementById('manual-form');
   const manualToggle = document.getElementById('manual-toggle');
   const manualBack = document.getElementById('manual-back');
@@ -165,10 +175,12 @@
   // Legacy support for single event select
   const eventSelect = document.getElementById('event-select');
 
-  let scanner = null, busy = false, completed = false, scannerPaused = false, scannerRunning = false;
+  let scanner = null, cameraStream = null, preview = null, busy = false, completed = false, scannerPaused = false, scannerRunning = false;
   let selectedAnnouncementId = ANNOUNCEMENT_ID;
   let officialMode = OFFICIAL; // 'own' for official's own attendance, 'resident' for recording resident
   let currentAttendanceMode = OFFICIAL ? 'own' : null;
+
+  if (!startBtn) return;
 
   // Handle official mode switching
   if (OFFICIAL && !ACTIVITY) {
@@ -178,7 +190,7 @@
       residentAttendanceMode?.classList.add('d-none');
       manualForm?.classList.add('d-none');
       manualToggle?.classList.remove('d-none');
-      if (scanner) scanner.stop().catch(() => {});
+      stopCamera();
       stopBtn.classList.add('d-none');
       startBtn.classList.remove('d-none');
       resultBox.classList.add('d-none');
@@ -190,7 +202,7 @@
       residentAttendanceMode?.classList.remove('d-none');
       manualForm?.classList.add('d-none');
       manualToggle?.classList.remove('d-none');
-      if (scanner) scanner.stop().catch(() => {});
+      stopCamera();
       stopBtn.classList.add('d-none');
       startBtn.classList.remove('d-none');
       resultBox.classList.add('d-none');
@@ -198,16 +210,61 @@
 
     ownEventSelect?.addEventListener('change', () => {
       selectedAnnouncementId = ownEventSelect.value || null;
+      startBtn.disabled = !selectedAnnouncementId;
     });
 
     residentEventSelect?.addEventListener('change', () => {
       selectedAnnouncementId = residentEventSelect.value || null;
+      startBtn.disabled = !selectedAnnouncementId;
     });
   }
 
   eventSelect?.addEventListener('change', () => {
     selectedAnnouncementId = eventSelect.value || null;
+    startBtn.disabled = !selectedAnnouncementId;
   });
+
+  if (OFFICIAL && (ownEventSelect || residentEventSelect)) {
+    startBtn.disabled = true;
+  } else if (eventSelect) {
+    startBtn.disabled = !eventSelect.value;
+  } else {
+    startBtn.disabled = !selectedAnnouncementId;
+  }
+
+  function stopCamera() {
+    if (scanner && scannerRunning) {
+      scanner.stop().catch(() => {});
+    }
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    preview?.remove();
+    preview = null;
+    scannerRunning = false;
+    scannerPaused = false;
+    startBtn.classList.remove('d-none');
+    stopBtn.classList.add('d-none');
+    scannerPlaceholder?.classList.remove('d-none');
+  }
+
+  function cameraError(error) {
+    const name = error?.name || '';
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return 'Camera permission was denied. Allow camera access for this site, then try again. Mobile browsers also require HTTPS (localhost is allowed).';
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      return 'No camera was found on this device.';
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'The camera is already in use by another app or browser tab. Close it and try again.';
+    }
+    if (name === 'OverconstrainedError') {
+      return 'The requested camera is unavailable. Check that a camera is connected and try again.';
+    }
+    return 'Camera access could not start. Check your browser permissions and make sure this page is served over HTTPS.';
+  }
 
   function show(ok, html) {
     resultBox.className = 'alert mt-3 rounded-3 ' + (ok ? 'alert-success' : 'alert-danger');
@@ -270,10 +327,7 @@
             '<li>Engagement bonus: +' + data.breakdown.early_bonus + '</li>' +
             '<li class="fw-semibold">Total: ' + data.breakdown.total + '</li>' +
           '</ul>');
-        if (scanner) scanner.stop().catch(() => {});
-        scannerPaused = false;
-        stopBtn.classList.add('d-none');
-        startBtn.classList.remove('d-none');
+        stopCamera();
       } else {
         const scanMessage = data.message || 'Attendance was not recorded. That scan could not be accepted.';
         if (OFFICIAL) {
@@ -355,24 +409,42 @@
   startBtn.addEventListener('click', async function () {
     if (completed) return;
     
-    // Check that an event is selected
-    let eventSelect = OFFICIAL ? (currentAttendanceMode === 'own' ? ownEventSelect : residentEventSelect) : eventSelect;
-    if (OFFICIAL && !selectedAnnouncementId) {
+    const selectedEvent = OFFICIAL ? (currentAttendanceMode === 'own' ? ownEventSelect : residentEventSelect) : eventSelect;
+    if (!selectedAnnouncementId) {
       show(false, currentAttendanceMode === 'own' 
         ? 'Select your event before starting the scanner.'
         : 'Select the resident\'s event before starting the scanner.');
-      eventSelect?.focus();
+      selectedEvent?.focus();
       return;
     }
-    
-    scanner = scanner || new Html5Qrcode('reader');
+
     try {
-      status('Starting camera…', 'info');
-      gpsStatus.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Requesting location permission…';
-      await position();
-      gpsStatus.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i>Location permission granted. Starting camera…';
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new DOMException('Camera API is unavailable in this browser.', 'NotSupportedError');
+      }
+      status('Requesting camera permission…', 'info');
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false
+      });
+      preview = document.createElement('video');
+      preview.autoplay = true;
+      preview.playsInline = true;
+      preview.muted = true;
+      preview.className = 'w-100 h-100 object-fit-cover';
+      preview.srcObject = cameraStream;
+      document.getElementById('reader').prepend(preview);
+      await preview.play();
+
+      const deviceId = cameraStream.getVideoTracks()[0]?.getSettings().deviceId;
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+      preview.remove();
+      preview = null;
+      scanner = scanner || new Html5Qrcode('reader');
+      status('Starting QR scanner…', 'info');
       await scanner.start(
-        { facingMode: 'environment' },
+        deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'environment' } },
         { fps: 10, qrbox: { width: 220, height: 220 } },
         text => {
           if (busy || completed) return;
@@ -393,11 +465,13 @@
       status(scanMessage, 'info');
       startBtn.classList.add('d-none');
       stopBtn.classList.remove('d-none');
+      scannerPlaceholder?.classList.add('d-none');
       document.getElementById('permission-help')?.classList.add('d-none');
     } catch (e) {
-      const cameraMessage = e.message.includes('location')
-        ? e.message + ' Allow location access, then press Open camera again.'
-        : 'Camera access was denied or could not start. Allow camera access in your browser settings, then try again. On a phone this page must be served over HTTPS.';
+      stopCamera();
+      const cameraMessage = e.name === 'NotSupportedError'
+        ? 'This browser does not support camera access.'
+        : cameraError(e);
       const fallbackMsg = OFFICIAL && manualToggle && currentAttendanceMode === 'resident'
         ? cameraMessage + '<div class="small fw-semibold mt-2">Use the Resident Unique ID Number fallback below if scanning is unavailable.</div>'
         : cameraMessage;
@@ -411,16 +485,12 @@
   });
 
   stopBtn.addEventListener('click', function () {
-    if (scanner && scannerRunning) scanner.stop().catch(() => {});
-    scannerRunning = false;
-    scannerPaused = false;
+    stopCamera();
     status('Camera stopped. Select Open camera to try again.', 'secondary');
-    stopBtn.classList.add('d-none');
-    startBtn.classList.remove('d-none');
   });
 
   window.addEventListener('pagehide', () => {
-    if (scanner && scannerRunning) scanner.stop().catch(() => {});
+    stopCamera();
   });
 
   if (PREFILLED) {
